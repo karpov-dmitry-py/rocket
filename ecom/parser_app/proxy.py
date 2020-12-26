@@ -12,6 +12,7 @@ from selenium.webdriver.common.keys import Keys
 # from selenium.webdriver.support.wait import WebDriverWait
 # from selenium.webdriver.support import expected_conditions as EC
 # from selenium.webdriver.common.by import By
+# noinspection PyPackageRequirements
 from seleniumwire import webdriver
 from selenium.webdriver.firefox.options import Options
 
@@ -161,8 +162,8 @@ class Parser:
             'currency': 'RUB',
             'storage': None,
             'seller_count': None,
-            'star_rating': '---',
-            'eval_count': '---',
+            'star_rating': None,
+            'eval_count': None,
             'review_count': None,
             'recommend_rate': None,
             'purchase_count': None,
@@ -272,6 +273,7 @@ class Parser:
             thumbnails = soup.find_all("li", class_="b_3ldhZi3q64")
             data['image_count'] = len(thumbnails)
 
+            # prices
             prices = []
             old_price = soup.find("span", {'data-auto': 'old-price'})
             if old_price:
@@ -302,6 +304,20 @@ class Parser:
                 data['min_price'] = min_price
             data['seller_count'] = len(prices)
 
+            # rating, eval, recommendation
+            star_rating = soup.find("span", class_="b_3C0DxleA0I")
+            if star_rating:
+                data['star_rating'] = star_rating.text
+
+            eval_count = soup.find("span", class_="b_2Wc288IN4J")
+            if eval_count:
+                data['eval_count'] = self._eval_count(eval_count.text)
+
+            if data['recommend_rate'] is None:
+                recommend_rate = soup.find("span", class_="b_128RDniUsM")
+                if recommend_rate:
+                    data['recommend_rate'] = recommend_rate.text
+
             self.save_to_scv(data=data)
 
         except Exception as err:
@@ -326,11 +342,7 @@ class Parser:
         if not _date:
             return
 
-        targets = (
-            'самовывоз',
-            'курьером'
-        )
-
+        days = [str(day) for day in range(1, 32)]
         months = {
             'января': 1,
             'февраля': 2,
@@ -346,17 +358,21 @@ class Parser:
             'декабря': 12,
         }
 
-        _date = _date.lower()
-        for target in targets:
-            _date = _date.replace(target, '')
+        words = _date.lower().split()
+        cleared_words = []
+        for word in words:
+            if word in days or word in list(months.keys()):
+                cleared_words.append(word)
+
+        if not cleared_words:
+            _err(f'Failed to find day and month in delivery date string: {_date}')
+            return
+
+        if len(cleared_words) > 2:
+            cleared_words = cleared_words[1:]
 
         try:
-            if ',' in _date:
-                _date = _date.split(',')[1].strip().split()
-                day, month = int(_date[0]), _date[1]
-            else:
-                _date = _date.split()
-                day, month = int(_date[0]), _date[3]
+            day, month = int(cleared_words[0]), cleared_words[1]
             month = months[month]
         except (IndexError, Exception) as err:
             err_msg = f'Failed to parse date from date string: {_date}. Error: {self._exc(err)}'
@@ -452,6 +468,16 @@ class Parser:
         return 0
 
     @staticmethod
+    def _eval_count(string):
+        try:
+            result = string.strip().split()[0]
+            if result.isdigit():
+                return int(result)
+        except IndexError:
+            pass
+        return 0
+
+    @staticmethod
     def _brand(brand):
         target = 'Все товары бренда '
         if target in brand:
@@ -463,7 +489,7 @@ class Parser:
 
     @staticmethod
     def _now():
-        _format = '%Y-%m-%d %H:%M:%S'
+        _format = '%d-%m-%Y %H:%M:%S'
         return datetime.now().strftime(_format)
 
     def save_to_scv(self, data: Dict[str, Any]) -> None:
@@ -474,9 +500,9 @@ class Parser:
         filename = f'product_{_id}.csv'
         file_path = os.path.join(os.path.dirname(__file__), filename)
         try:
-            with open(file_path, 'w') as csv_file:
+            with open(file_path, 'w', encoding='utf8', newline='') as csv_file:
                 fieldnames = [key for key in data.keys()]
-                writer = csv.DictWriter(f=csv_file, fieldnames=fieldnames)
+                writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerow(data)
             _log(f'Successfully saved file: {filename}')
@@ -529,11 +555,12 @@ class Parser:
                 driver.get(url)
 
                 elem = driver.find_element_by_tag_name('html')
-                for _ in range(10):
+                scroll_count = 11
+                for i in range(1, scroll_count):
                     elem.send_keys(Keys.PAGE_DOWN)
-                    time.sleep(3)
-                # element = wait.until(EC.visibility_of_element_located((By.CLASS_NAME, 'b_3C0DxleA0I')))
-                # wait = WebDriverWait(driver, 10)
+                    if i < scroll_count - 1:
+                        time.sleep(2)
+
                 source = driver.page_source
                 if self._is_captcha(source):
                     _log(f'Received captcha for url: {url}. Will try again')
@@ -594,15 +621,13 @@ class Parser:
 def main():
     # parser = Parser(region='Екатеринбург')
     parser = Parser()
-    parser.parse_product_page(url=TEST_URL2)
+    # parser.parse_product_page(url=TEST_URL2)
     # parser.parse_product_page(url=TEST_URL3)
-    # path = os.path.join(os.path.dirname(__file__), )
-    # with open(path, 'r') as f:
-    #     source = f.read()
     # source = parser.read_file('3_sellers.html')
     # source = parser.read_file('run1.html')
+    source = parser.read_file('run2_msk.html')
     # source = parser.read_file('response1.html')
-    # parser.parse_product_page(source=source)
+    parser.parse_product_page(source=source)
 
     # parser.parse_product_page(url=TEST_URL4)
 
