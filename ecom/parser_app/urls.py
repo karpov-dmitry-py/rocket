@@ -1,12 +1,8 @@
 from django.urls import path
-from . import views
-from .views import MarketPlaceListView
+from .views import MarketplaceListView
+from .views import MarketplaceCreateView
 
 urlpatterns = [
-    # path('', views.index, name='index'),
-    path('', MarketPlaceListView.as_view(), name='parser-home'),
-    # path('categories/', views.categories, name='categories'),
-    # path('urls/', views.urls, name='urls'),
-    # path('urls/<int:url_id>/', views.detail_url, name='url_details'),
+    path('', MarketplaceListView.as_view(), name='parser-marketplace-list'),
+    path('marketplace/add', MarketplaceCreateView.as_view(), name='parser-marketplace-add'),
 ]
-
