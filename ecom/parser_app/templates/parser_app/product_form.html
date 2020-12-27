@@ -1,0 +1,14 @@
+{% extends 'parser_app/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <legend class="border-bottom mb-4">Add/Update Product</legend>
+            {{ form|crispy }}
+        </div>
+        <div class="form-group">
+            <button class="btn btn-success" type="submit">Add/Update</button>
+        </div>
+    </form>
+{% endblock content %}

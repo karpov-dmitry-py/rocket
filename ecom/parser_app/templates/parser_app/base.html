@@ -17,24 +17,25 @@
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
         <ul class="navbar-nav mr-auto">
             <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="#"><h3>Marketplaces</h3><span class="sr-only">(current)</span></a>
+                <a class="navbar-brand" href="{% url 'parser-marketplace-list' %}">Marketplaces</a>
             </li>
             <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="#"><h3>Categories</h3><span class="sr-only">(current)</span></a>
+                <a class="navbar-brand" href="{% url 'parser-category-list' %}">Categories</a>
             </li>
             <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="#"><h3>Categories URLs</h3><span class="sr-only">(current)</span></a>
+                <a class="navbar-brand" href="{% url 'parser-product-list' %}">Products</a>
             </li>
             <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="#"><h3>Product URLs</h3><span class="sr-only">(current)</span></a>
+                <a class="navbar-brand" href="#">Categories parsing</a>
+            </li>
+            <li class="nav-item active" style="padding-right: 20px;">
+                <a class="navbar-brand" href="#">Products parsing</a>
             </li>
         </ul>
-    </div>
 </nav>
-<div class="container-fluid">
+<div class="container">
     {% if messages %}
     {% for message in messages %}
     <div class="alert alert-{{ message.tags }}">

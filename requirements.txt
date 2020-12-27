@@ -4,3 +4,4 @@ lxml==4.6.2
 requests==2.25.0
 selenium==3.141.0
 selenium-wire==2.1.2
+django-crispy-forms==1.10.0
