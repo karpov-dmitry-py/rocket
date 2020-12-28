@@ -18,6 +18,9 @@ from .views import ProductCreateView
 from .views import ProductUpdateView
 from .views import ProductDeleteView
 
+from .views import ProductParsingListView
+from .views import ProductParsingCreateView
+
 urlpatterns = [
     path('', MarketplaceListView.as_view(), name='parser-marketplace-list'),
     path('marketplace/<int:pk>/', MarketplaceDetailView.as_view(), name='parser-marketplace-detail'),
@@ -36,4 +39,9 @@ urlpatterns = [
     path('product/add', ProductCreateView.as_view(), name='parser-product-add'),
     path('product/<int:pk>/update/', ProductUpdateView.as_view(), name='parser-product-update'),
     path('product/<int:pk>/delete/', ProductDeleteView.as_view(), name='parser-product-delete'),
+
+    path('parsing-product/', ProductParsingListView.as_view(), name='parser-parsing-product-list'),
+    # path('product/<int:pk>/', ProductDetailView.as_view(), name='parser-product-detail'),
+    path('parsing-product/add', ProductParsingCreateView.as_view(), name='parser-parsing-product-add'),
+    # path('product/<int:pk>/delete/', ProductDeleteView.as_view(), name='parser-product-delete'),
 ]

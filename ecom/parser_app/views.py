@@ -7,6 +7,7 @@ from django.views.generic import DeleteView
 from .models import Marketplace
 from .models import Category
 from .models import Product
+from .models import ProductParsing
 
 
 # marketplace
@@ -97,3 +98,17 @@ class ProductUpdateView(UpdateView):
 class ProductDeleteView(DeleteView):
     model = Product
     success_url = '/product'
+
+
+# product parsing
+class ProductParsingListView(ListView):
+    model = ProductParsing
+    template_name = 'parser_app/productparsing_list.html'
+    context_object_name = 'items'
+    ordering = ['id']
+
+
+class ProductParsingCreateView(CreateView):
+    model = ProductParsing
+    fields = ['product', 'region']
+    success_url = '/parsing-product'
