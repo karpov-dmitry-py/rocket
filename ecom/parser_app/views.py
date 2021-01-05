@@ -1,3 +1,7 @@
+from django.shortcuts import render
+from django.shortcuts import redirect
+from django.contrib import messages
+
 from django.views.generic import ListView
 from django.views.generic import DetailView
 from django.views.generic import CreateView
@@ -8,6 +12,8 @@ from .models import Marketplace
 from .models import Category
 from .models import Product
 from .models import ProductParsing
+
+from .forms import ProductParsingCreateForm
 
 
 # marketplace
@@ -112,3 +118,28 @@ class ProductParsingCreateView(CreateView):
     model = ProductParsing
     fields = ['product', 'region']
     success_url = '/parsing-product'
+
+
+def product_parsing(request, pk=None):
+    if request.method == 'POST':
+        form = ProductParsingCreateForm(request.POST)
+        # TODO - check region code for marketplace
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'A new parse job has been created!')
+            return redirect('parser-parsing-product-list')
+    else:
+        if pk is not None:
+            # noinspection PyUnresolvedReferences
+            try:
+                product = Product.objects.get(pk=pk)
+            except Exception as err:
+                messages.error(request, f'Failed to get product with id: {pk}')
+                return redirect('parser-product-list')
+            initial = {'product': product}
+            form = ProductParsingCreateForm(initial=initial)
+        else:
+            form = ProductParsingCreateForm()
+
+    context = {'form': form}
+    return render(request, 'parser_app/productparsing_form.html', context)

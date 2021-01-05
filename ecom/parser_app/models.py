@@ -9,6 +9,7 @@ from django.db.models import CASCADE
 
 PARSING_STATUSES = [
     ('created', 'created'),
+    ('scheduled', 'scheduled'),
     ('progress', 'progress'),
     ('done', 'done'),
 ]
@@ -59,7 +60,7 @@ class RegionCode(Model):
 class ProductParsing(Model):
     product = ForeignKey(Product, on_delete=CASCADE)
     region = ForeignKey(Region, on_delete=CASCADE)
-    status = CharField(max_length=100, null=False, choices=PARSING_STATUSES)
+    status = CharField(max_length=100, null=False, choices=PARSING_STATUSES, default='created')
     result_file = CharField(max_length=1000, null=True)
     comment = TextField(max_length=5000, null=True)
     error = TextField(max_length=5000, null=True)

@@ -16,6 +16,7 @@
             <h5 class="card-text"><b>Marketplace:</b> <a href="{% url 'parser-marketplace-detail' item.marketplace.id %}">{{ item.marketplace }}</a></h5>
             <a href="{% url 'parser-product-detail' item.id %}" class="btn btn-primary">View</a>
             <a href="{% url 'parser-product-update' item.id %}" class="btn btn-info">Edit</a>
+            <a href="{% url 'parser-product-parse' item.id %}" class="btn btn-success">Parse</a>
             <a href="{% url 'parser-product-delete' item.id %}" class="btn btn-dark">Delete</a>
         </div>
 
