@@ -22,8 +22,6 @@ from .views import ProductParsingListView
 # from .views import ProductParsingCreateView
 from .views import product_parsing
 
-from .parser_scheduler import start_product_parsing
-
 urlpatterns = [
     path('', MarketplaceListView.as_view(), name='parser-marketplace-list'),
     path('marketplace/', MarketplaceListView.as_view(), name='parser-marketplace-list'),
@@ -53,6 +51,3 @@ urlpatterns = [
     path('product/parse/', product_parsing, name='parser-product-parse'),
     # path('product/<int:pk>/delete/', ProductDeleteView.as_view(), name='parser-product-delete'),
 ]
-
-# start scheduler
-start_product_parsing()

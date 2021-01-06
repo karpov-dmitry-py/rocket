@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.shortcuts import redirect
 from django.contrib import messages
+from django.core.exceptions import ObjectDoesNotExist
 
 from django.views.generic import ListView
 from django.views.generic import DetailView
@@ -14,6 +15,8 @@ from .models import Product
 from .models import ProductParsing
 
 from .forms import ProductParsingCreateForm
+from .models import Helper
+from .parser_scheduler import start_product_parsing
 
 
 # marketplace
@@ -122,19 +125,25 @@ class ProductParsingCreateView(CreateView):
 
 def product_parsing(request, pk=None):
     if request.method == 'POST':
+        product_id = request.POST.get('product')
+        region_id = request.POST.get('region')
+        codes = Helper.get_region_codes_by_ids(product_id, region_id)
+        if not codes:
+            messages.error(request, f"Please add region code for selected product's marketplace and try again!")
+            redirect_view_name = request.resolver_match.view_name
+            return redirect(redirect_view_name)
         form = ProductParsingCreateForm(request.POST)
-        # TODO - check region code for marketplace
         if form.is_valid():
             form.save()
             messages.success(request, f'A new parse job has been created!')
             return redirect('parser-parsing-product-list')
     else:
         if pk is not None:
-            # noinspection PyUnresolvedReferences
             try:
+                # noinspection PyUnresolvedReferences
                 product = Product.objects.get(pk=pk)
-            except Exception as err:
-                messages.error(request, f'Failed to get product with id: {pk}')
+            except ObjectDoesNotExist:
+                messages.error(request, f'Product with id: {pk} does not exist!')
                 return redirect('parser-product-list')
             initial = {'product': product}
             form = ProductParsingCreateForm(initial=initial)
@@ -143,3 +152,7 @@ def product_parsing(request, pk=None):
 
     context = {'form': form}
     return render(request, 'parser_app/productparsing_form.html', context)
+
+
+# start scheduler
+start_product_parsing()

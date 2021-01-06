@@ -6,12 +6,14 @@ from .models import ProductParsing
 
 
 def process_product_parsing():
-    # _log('This is a scheduled call of "process_product_parsing"')
     jobs = ProductParsing.objects.filter(status='created')
+    new_status = 'scheduled'
     for job in jobs:
-        _log(f'Found job with status created: {job.id}')
+        job.status = new_status
+        job.save()
+        _log(f'Found a product parsing job to be processed with id: {job.id}')
     if not jobs:
-        _log('No jobs to process found!')
+        _log('No product parsing jobs to be processed found.')
 
 
 def start_product_parsing():
