@@ -5,7 +5,6 @@ from datetime import timedelta
 
 import requests
 import csv
-import json
 import os.path
 from random import choice
 from selenium.webdriver.common.keys import Keys
@@ -18,103 +17,41 @@ from selenium.webdriver.firefox.options import Options
 
 from bs4 import BeautifulSoup
 
+from proxy import ProxyManager
 from helpers import _log
 from helpers import _err
 
-API_KEY = '85b11ee4b684d93c8f99044a3a4015aa'
-PROXY_API_BASE_URL = 'https://proxymania.ru/api'
-PROXY_SOURCE = 'proxies.json'
-# USER_AGENT_HEADER1 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' \
-#                     'Chrome/87.0.4280.66 Safari/537.36'
-# USER_AGENT_HEADER2 = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:83.0) Gecko/20100101 Firefox/83.0'
-
-# TEST_URL1 = 'https://pokupki.market.yandex.ru/product/dushevaia-stoika-lemark-tropic-lm7002c-khrom/' \
-#             '1729156733?show-uid=16069023726419173634506002&offerid=j1whkfwvdtmdnD_4fMO3wg'
-TEST_URL2 = 'https://pokupki.market.yandex.ru/product/dushevaia-stoika-bravat-opal-f6125183cp-a-rus-khrom/' \
-            '13189953?show-uid=16070308423349822257006001&offerid=htYSTQ69Z9t2xYMvPwYopA'
-
+# TEST_URL2 = 'https://pokupki.market.yandex.ru/product/dushevaia-stoika-bravat-opal-f6125183cp-a-rus-khrom/' \
+#             '13189953?show-uid=16070308423349822257006001&offerid=htYSTQ69Z9t2xYMvPwYopA'
+#
 # TEST_URL3 = 'https://pokupki.market.yandex.ru/product/gigienicheskii-dush-vstraivaemyi-lemark-plus-advance-' \
 #             'lm1219c-khrom/1881772768?show-uid=16078875381409844855606004&offerid=ZWkBGAvM5Lnr7EcC06lmpg'
-
-TEST_URL4 = 'https://pokupki.market.yandex.ru/product/dushevoi-nabor-garnitur-vidima-orion-b4227aa-ba004aa-khrom/' \
-            '1632236?show-uid=16084771131237112433306006&offerid=sLc39hfqHXlRrapRlpcaOA'
+#
+# TEST_URL4 = 'https://pokupki.market.yandex.ru/product/dushevoi-nabor-garnitur-vidima-orion-b4227aa-ba004aa-khrom/' \
+#             '1632236?show-uid=16084771131237112433306006&offerid=sLc39hfqHXlRrapRlpcaOA'
 
 
 class Parser:
-    regions = {
-        'Москва': '213',
-        'Екатеринбург': '54',
-        'Чебоксары': '45',
-    }
 
-    def __init__(self, region='Москва'):
+    def __init__(self, job, region_code, _type='product'):
 
-        self._key = API_KEY
-        self._proxy_api_base_url = PROXY_API_BASE_URL
-
-        self._proxies = None
+        self._proxies = ProxyManager(get_from_api=False).get_proxies()
         self._timeout = (3.05, 10)
         self._set_session()
 
-        # self._retrieve_proxies_from_api()
-        self._read_proxies_from_fs()
+        product = job.product
+        self._job = job
+        self._url = product.url
+        self._region_code = region_code
+        self._region = str(job.region)
 
-        region_id = self.regions.get(region)
-        if not region_id:
-            err_msg = f'No region id found for region: {region}'
-            _err(err_msg)
-            raise ValueError(err_msg)
-        self._region = region
-        self._region_id = region_id
+        if _type == 'product':
+            self.parse_product_page(url=self._url)
+        elif _type == 'category':
+            self.parse_category(url=self._url)
 
     def _set_session(self):
         self._session = requests.Session()
-
-    def _save_proxies_to_fs(self, proxies_list):
-        proxies = []
-        for _dict in proxies_list:
-            user = _dict.get('username')
-            pswd = _dict.get('password')
-            address = _dict.get('http')
-            full_url = f'http://{user}:{pswd}@{address}'
-            proxy = {
-                'http': full_url,
-                'https': full_url,
-            }
-            proxies.append(proxy)
-
-        self._proxies = proxies
-        file_path = self._get_proxies_full_path()
-        with open(file_path, 'w') as f:
-            json.dump(proxies, f)
-            _log(f'Saved formatted proxies to: {file_path}')
-
-    def _retrieve_proxies_from_api(self):
-        url = f'{self._proxy_api_base_url}/get_proxies/{self._key}/?extended=0'
-        response = self._session.get(url)
-
-        if response.status_code != 200:
-            err_msg = f'Non-200 response received from proxy provider. ' \
-                      f'Provider API: {url}' \
-                      f'Response text: {response.text}'
-            _err(err_msg)
-
-            return
-
-        proxies = response.json()
-        if not proxies:
-            _err(f'No available proxies retrieved from provider API: {url}')
-            return
-        self._save_proxies_to_fs(proxies)
-
-    @staticmethod
-    def _get_proxies_full_path():
-        return os.path.join(os.path.dirname(__file__), PROXY_SOURCE)
-
-    def _read_proxies_from_fs(self):
-        file_path = self._get_proxies_full_path()
-        with open(file_path, 'r') as source:
-            self._proxies = json.load(source)
 
     @staticmethod
     def _save_content(content, filename):
@@ -127,7 +64,7 @@ class Parser:
         return result
 
     @staticmethod
-    def _create_webdriver(proxy, time_to_wait=15):
+    def _create_webdriver(proxy, time_to_wait=10):
         options = Options()
         options.headless = True
         wire_options = {
@@ -190,6 +127,9 @@ class Parser:
         for div in soup.find_all("div", class_=class_):
             if any(target in str(div).lower() for target in targets):
                 div.decompose()
+
+    def parse_category(self, url):
+        pass
 
     def parse_product_page(self, url=None, source=None):
         if not (url or source):
@@ -559,12 +499,12 @@ class Parser:
                 for i in range(1, scroll_count):
                     elem.send_keys(Keys.PAGE_DOWN)
                     if i < scroll_count - 1:
-                        time.sleep(2)
+                        time.sleep(0.5)
 
                 source = driver.page_source
                 if self._is_captcha(source):
                     _log(f'Received captcha for url: {url}. Will try again')
-                    self._sleep(10)
+                    self._sleep(3)
                     attempts += 1
                     continue
 

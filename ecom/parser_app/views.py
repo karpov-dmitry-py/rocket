@@ -15,7 +15,7 @@ from .models import Product
 from .models import ProductParsing
 
 from .forms import ProductParsingCreateForm
-from .models import Helper
+from .models import ModelHelper
 from .parser_scheduler import start_product_parsing
 
 
@@ -127,9 +127,9 @@ def product_parsing(request, pk=None):
     if request.method == 'POST':
         product_id = request.POST.get('product')
         region_id = request.POST.get('region')
-        codes = Helper.get_region_codes_by_ids(product_id, region_id)
-        if not codes:
-            messages.error(request, f"Please add region code for selected product's marketplace and try again!")
+        db_row = ModelHelper.get_region_codes_by_ids(product_id, region_id)
+        if not db_row:
+            messages.error(request, f"Please add region code for selected product's marketplace to db and try again!")
             redirect_view_name = request.resolver_match.view_name
             return redirect(redirect_view_name)
         form = ProductParsingCreateForm(request.POST)

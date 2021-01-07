@@ -72,7 +72,7 @@ class ProductParsing(Model):
         return f'{self.product}: {self.start_date}: {self.status}'
 
 
-class Helper:
+class ModelHelper:
 
     @staticmethod
     def get_region_codes_by_ids(product_id, region_id):
@@ -80,12 +80,14 @@ class Helper:
         product = Product.objects.get(pk=product_id)
         # noinspection PyUnresolvedReferences
         region = Region.objects.get(pk=region_id)
-        result = Helper.get_region_codes_by_objects(product, region)
+        result = ModelHelper.get_region_codes_by_objects(product, region)
         return result
 
     @staticmethod
-    def get_region_codes_by_objects(product, region):
-        marketplace = product.marketplace
+    def get_region_codes_by_objects(_object, region):
+        marketplace = _object.marketplace
         # noinspection PyUnresolvedReferences
-        result = RegionCode.objects.filter(marketplace=marketplace).filter(region=region)
-        return result
+        rows = RegionCode.objects.filter(marketplace=marketplace).filter(region=region)
+        if not rows:
+            return
+        return rows[0]
