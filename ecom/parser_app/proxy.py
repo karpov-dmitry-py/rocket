@@ -2,8 +2,8 @@ import os.path
 import json
 import requests
 
-from helpers import _log
-from helpers import _err
+from .helpers import _log
+from .helpers import _err
 
 API_KEY = '85b11ee4b684d93c8f99044a3a4015aa'
 API_BASE_URL = 'https://proxymania.ru/api'
