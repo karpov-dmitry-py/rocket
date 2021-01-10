@@ -12,6 +12,8 @@ from django.views.generic import DeleteView
 from .models import Marketplace
 from .models import Category
 from .models import Product
+from .models import Region
+from .models import RegionCode
 from .models import ProductParsing
 
 from .forms import ProductParsingCreateForm
@@ -107,6 +109,66 @@ class ProductUpdateView(UpdateView):
 class ProductDeleteView(DeleteView):
     model = Product
     success_url = '/product'
+
+
+# region
+class RegionListView(ListView):
+    model = Region
+    template_name = 'parser_app/region_list.html'
+    context_object_name = 'regions'
+    ordering = ['id']
+
+
+class RegionDetailView(DetailView):
+    model = Region
+    fields = ['name', ]
+
+
+class RegionCreateView(CreateView):
+    model = Region
+    fields = ['name', ]
+    success_url = '/region'
+
+
+class RegionUpdateView(UpdateView):
+    model = Region
+    fields = ['name']
+    success_url = '/region'
+
+
+class RegionDeleteView(DeleteView):
+    model = Region
+    success_url = '/region'
+
+
+# region code
+class RegionCodeListView(ListView):
+    model = RegionCode
+    template_name = 'parser_app/regioncode_list.html'
+    context_object_name = 'region_codes'
+    ordering = ['id']
+
+
+class RegionCodeDetailView(DetailView):
+    model = RegionCode
+    fields = ['region', 'marketplace', 'code']
+
+
+class RegionCodeCreateView(CreateView):
+    model = RegionCode
+    fields = ['region', 'marketplace', 'code']
+    success_url = '/region_code'
+
+
+class RegionCodeUpdateView(UpdateView):
+    model = RegionCode
+    fields = ['region', 'marketplace', 'code']
+    success_url = '/region_code'
+
+
+class RegionCodeDeleteView(DeleteView):
+    model = RegionCode
+    success_url = '/region_code'
 
 
 # product parsing

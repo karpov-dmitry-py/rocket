@@ -1,0 +1,24 @@
+{% extends 'parser_app/base.html' %}
+{% block content %}
+
+<div class="card" style="margin-bottom: 30px; margin-top: 30px;">
+    <div class="card-body">
+        <h4 class="card-title"><b>Regions</b></h4>
+        <a href="{% url 'parser-region-add' %}" class="btn btn-success">Add new</a>
+    </div>
+</div>
+{% for item in regions %}
+<ul class="list-group">
+    <li class="list-group-item" style="margin-bottom: 30px;">
+        <div class="card-body" style="padding-left: 0rem; padding-bottom: 0.5rem; padding-top: 0.5rem;">
+            <h5 class="card-text"><b>Name:</b> {{ item.name }}</h5>
+            <a href="{% url 'parser-region-detail' item.id %}" class="btn btn-primary">View</a>
+            <a href="{% url 'parser-region-update' item.id %}" class="btn btn-info">Edit</a>
+            <a href="{% url 'parser-region-delete' item.id %}" class="btn btn-dark">Delete</a>
+        </div>
+
+    </li>
+</ul>
+{% endfor %}
+
+{% endblock content %}

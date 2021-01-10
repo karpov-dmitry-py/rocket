@@ -3,9 +3,6 @@ import sys
 # noinspection PyPackageRequirements
 import pytz
 from datetime import datetime
-from django.conf import settings as django_settings
-
-# django_settings.configure()
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -29,7 +26,8 @@ def _now():
 
 
 def _timezone():
-    return pytz.timezone(zone=django_settings.TIME_ZONE)
+    # TODO - use django general settings
+    return pytz.timezone(zone='Europe/Moscow')
 
 
 def _make_aware_time(_datetime):

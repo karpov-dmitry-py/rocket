@@ -38,6 +38,12 @@ class Parser:
 
     def __init__(self, job, region_code, _type='product'):
 
+        if not region_code:
+            err_msg = f'Found no region code in db for product parsing job: {job.id}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+            return
+
         self._proxies = ProxyManager(get_from_api=False).get_proxies()
         self._timeout = (3.05, 10)
         self._set_session()

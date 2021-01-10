@@ -33,14 +33,11 @@ def process_product_parsing():
         product = job.product
         region = job.region
         db_row = ModelHelper.get_region_codes_by_objects(product, region)
-        if not db_row:
-            # TODO - error to db for job
-            _err(f'Found no region code in db for product parsing job: {job.id}')
-            continue
+
         # actual parsing start
         Parser(
             job=job,
-            region_code=db_row.code,
+            region_code=db_row.code if db_row else None,
             _type='product'
         )
 

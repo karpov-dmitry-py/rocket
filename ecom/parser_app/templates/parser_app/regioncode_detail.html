@@ -1,0 +1,14 @@
+{% extends 'parser_app/base.html' %}
+{% block content %}
+    <li class="list-group-item" style="margin: 25px;">
+        <legend class="border-bottom mb-4">View Region Code</legend>
+        <div class="card-body" style="padding-left: 0rem; padding-bottom: 0.5rem; padding-top: 0.5rem;">
+            <h5 class="card-text"><b>ID:</b> {{ object.id }}</h5>
+            <h5 class="card-text"><b>Region:</b> <a href="{% url 'parser-region-detail' object.region.id %}">{{ object.region }}</a></h5>
+            <h5 class="card-text"><b>Marketplace:</b> <a href="{% url 'parser-marketplace-detail' object.marketplace.id %}">{{ object.marketplace }}</a></h5>
+            <h5 class="card-text"><b>Code:</b> {{ object.code }}</h5>
+            <a href="{% url 'parser-region-code-update' object.id %}" class="btn btn-info">Edit</a>
+            <a href="{% url 'parser-region-code-delete' object.id %}" class="btn btn-dark">Delete</a>
+        </div>
+    </li>
+{% endblock content %}

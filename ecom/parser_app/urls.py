@@ -18,6 +18,18 @@ from .views import ProductCreateView
 from .views import ProductUpdateView
 from .views import ProductDeleteView
 
+from .views import RegionListView
+from .views import RegionDetailView
+from .views import RegionCreateView
+from .views import RegionUpdateView
+from .views import RegionDeleteView
+
+from .views import RegionCodeListView
+from .views import RegionCodeDetailView
+from .views import RegionCodeCreateView
+from .views import RegionCodeUpdateView
+from .views import RegionCodeDeleteView
+
 from .views import ProductParsingListView
 # from .views import ProductParsingCreateView
 from .views import product_parsing
@@ -39,10 +51,21 @@ urlpatterns = [
     path('product/', ProductListView.as_view(), name='parser-product-list'),
     path('product/<int:pk>/', ProductDetailView.as_view(), name='parser-product-detail'),
     path('product/<int:pk>/parse/', product_parsing, name='parser-product-parse'),
-
     path('product/add', ProductCreateView.as_view(), name='parser-product-add'),
     path('product/<int:pk>/update/', ProductUpdateView.as_view(), name='parser-product-update'),
     path('product/<int:pk>/delete/', ProductDeleteView.as_view(), name='parser-product-delete'),
+
+    path('region/', RegionListView.as_view(), name='parser-region-list'),
+    path('region/<int:pk>/', RegionDetailView.as_view(), name='parser-region-detail'),
+    path('region/add', RegionCreateView.as_view(), name='parser-region-add'),
+    path('region/<int:pk>/update/', RegionUpdateView.as_view(), name='parser-region-update'),
+    path('region/<int:pk>/delete/', RegionDeleteView.as_view(), name='parser-region-delete'),
+
+    path('region_code/', RegionCodeListView.as_view(), name='parser-region-code-list'),
+    path('region_code/<int:pk>/', RegionCodeDetailView.as_view(), name='parser-region-code-detail'),
+    path('region_code/add', RegionCodeCreateView.as_view(), name='parser-region-code-add'),
+    path('region_code/<int:pk>/update/', RegionCodeUpdateView.as_view(), name='parser-region-code-update'),
+    path('region_code/<int:pk>/delete/', RegionCodeDeleteView.as_view(), name='parser-region-code-delete'),
 
     path('parsing-product/', ProductParsingListView.as_view(), name='parser-parsing-product-list'),
     # path('product/<int:pk>/', ProductDetailView.as_view(), name='parser-product-detail'),
