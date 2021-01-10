@@ -1,9 +1,9 @@
 import time
+import uuid
 from typing import Dict, Any
 from datetime import datetime
 from datetime import timedelta
 
-import pytz
 import requests
 import csv
 import os.path
@@ -16,11 +16,12 @@ from selenium.webdriver.common.keys import Keys
 from seleniumwire import webdriver
 from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
-from django.conf import settings as project_settings
 
 from .proxy import ProxyManager
 from .helpers import _log
 from .helpers import _err
+from .helpers import _now
+from .helpers import _now_as_str
 
 
 # TEST_URL2 = 'https://pokupki.market.yandex.ru/product/dushevaia-stoika-bravat-opal-f6125183cp-a-rus-khrom/' \
@@ -48,8 +49,9 @@ class Parser:
         self._region = str(job.region)
 
         if _type not in self._supported_parsing_types():
-            # TODO - update job with error=true and details
-            raise ValueError(f'Parser error! Wrong parsing type ("{_type}") passed in for job with id: {self._job.id}')
+            err_msg = f'Parser error! Wrong parsing type ("{_type}") passed in for job with id: {self._job.id}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
 
         self.update_job()
         if _type == 'product':
@@ -67,7 +69,7 @@ class Parser:
             'category',
         )
 
-    def update_job(self, job=None, status=None, result_file=None):
+    def update_job(self, job=None, status=None, result_file=None, error=None):
         progress_status = 'progress'
         final_status = 'done'
 
@@ -78,9 +80,11 @@ class Parser:
         if result_file:
             job.result_file = result_file
 
+        if error:
+            job.error = error
+
         if status == final_status:
-            timezone = pytz.timezone(zone=project_settings.TIME_ZONE)
-            job.end_date = datetime.now(timezone)
+            job.end_date = _now()
             delta = job.end_date - job.start_date
             job.duration = round(delta.total_seconds(), 2)
 
@@ -93,6 +97,7 @@ class Parser:
             f.write(content)
 
     def _prepare_url(self, url):
+        # TODO - individual logic for each marketplace; only Yandex Pokupki is implemented so far
         result = f'{url}&lr={self._region_code}'
         return result
 
@@ -166,146 +171,147 @@ class Parser:
 
     def parse_product_page(self, url=None, source=None):
 
-        base_dir = os.path.dirname(__file__)
-        result_dir = 'static/parser_app/product'
-        filename = f'product_{self._job.id}.txt'
-        full_path = os.path.join(base_dir, result_dir, filename)
-        with open(full_path, 'w') as file:
-            file.write(f'This is the result for product parsing: {self._job.id}')
-        self.update_job(status='done', result_file=filename)
-        return
+        if not (url or source):
+            err_msg = f'No url or source provided for parsing: {url}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+            return
 
-        # if not (url or source):
-        #     err_msg = f'No url or source provided for parsing: {url}'
-        #     _err(err_msg)
-        #     return
-        #
-        # if url and not source:
-        #     url = self._prepare_url(url)
-        #     source = self._get_source(url)
-        #     if not source:
-        #         err_msg = f'No content received for url: {url}'
-        #         _err(err_msg)
-        #         return
-        #     self._save_content(source, 'run2_msk.html')
-        # try:
-        #     soup = BeautifulSoup(source, 'lxml')
-        #     self._remove_bad_elements(soup)
-        # except Exception as err:
-        #     err_msg = f'Failed to build bs4 tree from source of url: {url}. ' \
-        #               f'Error: {self._exc(err)}'
-        #     _err(err_msg)
-        #     return
-        #
-        # data = self._get_data_empty_dict()
-        # try:
-        #     # url, id
-        #     if url:
-        #         _id = url.split('?')[0].split('/')[-1]
-        #         data['id'] = _id
-        #         data['url'] = url
-        #
-        #     # title
-        #     title = soup.find("h1", class_="b_rPzd7GVCYx b_1s00-3EuYB")
-        #     if title:
-        #         data['title'] = title.text
-        #
-        #     # categories
-        #     categories = soup.find_all("span", class_="b_2_ymxwgqvC")
-        #     category = '/'.join(self._values(categories)[1:])
-        #     data['category'] = category
-        #
-        #     # stats
-        #     stats = soup.find_all("span", class_="text b_3l-uEDOaBN b_1keKGH6ida b_3HJsMt3YC_ b_QDV8hKAp1G")
-        #     stats = self._values(stats)
-        #     data['purchase_count'] = self._puchase_count(stats)
-        #     data['recommend_rate'] = self._recommend_rate(stats)
-        #     data['view_count'] = self._view_count(stats)
-        #
-        #     # reviews
-        #     reviews = soup.find("span", class_="b_2MBnkkD0XY")
-        #     data['review_count'] = self._review_count(reviews.text)
-        #
-        #     # storage
-        #     storage = soup.find("div", {'data-zone-name': 'warehouse'})
-        #     if storage:
-        #         data['storage'] = storage.text
-        #
-        #     # seller
-        #     seller = soup.find("a", {'data-tid': 'f54fb4c8 3d02273a'})
-        #     if seller:
-        #         data['seller'] = seller.text
-        #
-        #     # brand
-        #     brand = soup.find("div", class_="b_12Md0AuR7n")
-        #     if brand:
-        #         data['brand'] = self._brand(brand.text)
-        #
-        #     # delivery dates
-        #     deliveries = soup.find_all("div", class_="b_37t9OXssoz")
-        #     deliveries = self._values(deliveries)
-        #     if deliveries:
-        #         data['pickup_days'] = self._days(self._delivery_date(deliveries, 'самовывоз'))
-        #         data['delivery_days'] = self._days(self._delivery_date(deliveries, 'курьер'))
-        #
-        #     # images
-        #     main_image = soup.find("div", class_="b_2ke8Y2fll7")
-        #     if main_image:
-        #         data['image_url'] = self._image_url(main_image)
-        #
-        #     thumbnails = soup.find_all("li", class_="b_3ldhZi3q64")
-        #     data['image_count'] = len(thumbnails)
-        #
-        #     # prices
-        #     prices = []
-        #     old_price = soup.find("span", {'data-auto': 'old-price'})
-        #     if old_price:
-        #         data['old_price'] = self._price(old_price.text)
-        #
-        #     main_price = soup.find("div", class_="b_2r89I1B_sZ")
-        #     if main_price:
-        #         main_price = self._price(main_price.text)
-        #         data['main_price'] = main_price
-        #         prices.append(main_price)
-        #         if not old_price:
-        #             data['old_price'] = main_price
-        #
-        #     discount = soup.find("div", class_="b_1KTAcrzTNV")
-        #     if discount:
-        #         data['discount_rate'] = self._numeric(discount.text)
-        #
-        #     competitor_prices = soup.find_all("span",
-        #                                       class_="b_1pTV0mQZJz b_37FeBjfnZk b_HBgx6P83Bo _brandTheme_default")
-        #     if competitor_prices:
-        #         for item in competitor_prices:
-        #             price = self._price(item.text)
-        #             if price:
-        #                 prices.append(price)
-        #
-        #     min_price = min(prices)
-        #     if min_price:
-        #         data['min_price'] = min_price
-        #     data['seller_count'] = len(prices)
-        #
-        #     # rating, eval, recommendation
-        #     star_rating = soup.find("span", class_="b_3C0DxleA0I")
-        #     if star_rating:
-        #         data['star_rating'] = star_rating.text
-        #
-        #     eval_count = soup.find("span", class_="b_2Wc288IN4J")
-        #     if eval_count:
-        #         data['eval_count'] = self._eval_count(eval_count.text)
-        #
-        #     if data['recommend_rate'] is None:
-        #         recommend_rate = soup.find("span", class_="b_128RDniUsM")
-        #         if recommend_rate:
-        #             data['recommend_rate'] = recommend_rate.text
-        #
-        #     self.save_to_scv(data=data)
+        if url and not source:
+            url = self._prepare_url(url)
+            source = self._get_source(url)
+            if not source:
+                err_msg = f'No content received for url: {url}'
+                _err(err_msg)
+                self.update_job(status='done', error=err_msg)
+                return
+            content_save_filename = f'product_parsing_job_{self._job.id}_.html'
+            self._save_content(source, content_save_filename)
+        try:
+            soup = BeautifulSoup(source, 'lxml')
+            self._remove_bad_elements(soup)
+        except Exception as err:
+            err_msg = f'Failed to build bs4 tree from source of url: {url}. ' \
+                      f'Error: {self._exc(err)}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+            return
 
-        # except Exception as err:
-        #     err_msg = f'Failed to parse product page: {data.get("id")}. Error: {self._exc(err)}'
-        #     _err(err_msg)
+        data = self._get_data_empty_dict()
+        try:
+            # url, id
+            if url:
+                _id = url.split('?')[0].split('/')[-1]
+                data['id'] = _id
+                data['url'] = url
+
+            # title
+            title = soup.find("h1", class_="b_rPzd7GVCYx")
+            if title:
+                data['title'] = title.text
+
+            # categories
+            categories = soup.find_all("span", class_="b_2_ymxwgqvC")
+            category = '/'.join(self._values(categories)[1:])
+            data['category'] = category
+
+            # stats
+            # stats = soup.find_all("span", class_="text b_3l-uEDOaBN b_1keKGH6ida b_3HJsMt3YC_ b_QDV8hKAp1G")
+            stats = soup.find_all("span", class_="text")
+            stats = self._values(stats)
+            data['purchase_count'] = self._puchase_count(stats)
+            data['recommend_rate'] = self._recommend_rate(stats)
+            data['view_count'] = self._view_count(stats)
+
+            # reviews
+            reviews = soup.find("span", class_="b_2MBnkkD0XY")
+            data['review_count'] = self._review_count(reviews.text)
+
+            # storage
+            storage = soup.find("div", {'data-zone-name': 'warehouse'})
+            if storage:
+                data['storage'] = storage.text
+
+            # seller
+            seller = soup.find("a", {'data-tid': 'f54fb4c8 3d02273a'})
+            if seller:
+                data['seller'] = seller.text
+
+            # brand
+            brand = soup.find("div", class_="b_12Md0AuR7n")
+            if brand:
+                data['brand'] = self._brand(brand.text)
+
+            # delivery dates
+            deliveries = soup.find_all("div", class_="b_37t9OXssoz")
+            deliveries = self._values(deliveries)
+            if deliveries:
+                data['pickup_days'] = self._days(self._delivery_date(deliveries, 'самовывоз'))
+                data['delivery_days'] = self._days(self._delivery_date(deliveries, 'курьер'))
+
+            # images
+            main_image = soup.find("div", class_="b_2ke8Y2fll7")
+            if main_image:
+                data['image_url'] = self._image_url(main_image)
+
+            thumbnails = soup.find_all("li", class_="b_3ldhZi3q64")
+            data['image_count'] = len(thumbnails)
+
+            # prices
+            prices = []
+            old_price = soup.find("span", {'data-auto': 'old-price'})
+            if old_price:
+                data['old_price'] = self._price(old_price.text)
+
+            main_price = soup.find("div", class_="b_2r89I1B_sZ")
+            if main_price:
+                main_price = self._price(main_price.text)
+                data['main_price'] = main_price
+                prices.append(main_price)
+                if not old_price:
+                    data['old_price'] = main_price
+
+            discount = soup.find("div", class_="b_1KTAcrzTNV")
+            if discount:
+                # TODO - remove discounts of other (not main) sellers
+                data['discount_rate'] = self._numeric(discount.text)
+
+            competitor_prices = soup.find_all("span",
+                                              class_="b_1pTV0mQZJz b_37FeBjfnZk b_HBgx6P83Bo _brandTheme_default")
+
+            # competitor_prices = soup.find_all("div", class_="b_3hAFz-Ck8A")
+
+            if competitor_prices:
+                for item in competitor_prices:
+                    price = self._price(item.text)
+                    if price:
+                        prices.append(price)
+
+            min_price = min(prices)
+            if min_price:
+                data['min_price'] = min_price
+            data['seller_count'] = len(prices)
+
+            # rating, eval, recommendation
+            star_rating = soup.find("span", class_="b_3C0DxleA0I")
+            if star_rating:
+                data['star_rating'] = star_rating.text
+
+            eval_count = soup.find("span", class_="b_2Wc288IN4J")
+            if eval_count:
+                data['eval_count'] = self._eval_count(eval_count.text)
+
+            if data['recommend_rate'] is None:
+                recommend_rate = soup.find("span", class_="b_128RDniUsM")
+                if recommend_rate:
+                    data['recommend_rate'] = recommend_rate.text
+
+            self.save_to_scv(data=data)
+
+        except Exception as err:
+            err_msg = f'Failed to parse product page: {data.get("id")}. Error: {self._exc(err)}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
 
     @staticmethod
     def _values(results):
@@ -470,29 +476,26 @@ class Parser:
             except (IndexError, AttributeError):
                 pass
 
-    @staticmethod
-    def _now():
-        _format = '%d-%m-%Y %H:%M:%S'
-        return datetime.now().strftime(_format)
-
     def save_to_scv(self, data: Dict[str, Any]) -> None:
-        data['parse_date'] = self._now()
+        data['parse_date'] = _now_as_str()
         data['region'] = self._region
-
-        _id = data.get('id') or 'no_id'
-        filename = f'product_{_id}.csv'
-        file_path = os.path.join(os.path.dirname(__file__), filename)
+        base_dir = os.path.dirname(__file__)
+        result_dir = 'static/parser_app/product'
+        _id = str(uuid.uuid4())
+        filename = f'product_parsing_job_{self._job.id}_{_id}.csv'
+        full_path = os.path.join(base_dir, result_dir, filename)
         try:
-            with open(file_path, 'w', encoding='utf8', newline='') as csv_file:
+            with open(full_path, 'w', encoding='utf8', newline='') as csv_file:
                 fieldnames = [key for key in data.keys()]
-                writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames)
+                writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames, dialect=csv.excel)
                 writer.writeheader()
                 writer.writerow(data)
-            _log(f'Successfully saved file: {filename}')
+            _log(f'Successfully saved file: {full_path}')
+            self.update_job(status='done', result_file=filename)
         except Exception as err:
-            err_msg = f'Failed to save file: {filename}. Error: {self._exc(err)}'
+            err_msg = f'Failed to save file: {full_path}. Error: {self._exc(err)}'
             _err(err_msg)
-            raise Exception(err_msg)
+            self.update_job(status='done', error=err_msg)
 
     @staticmethod
     def _is_captcha(source):
@@ -542,7 +545,7 @@ class Parser:
                 for i in range(1, scroll_count):
                     elem.send_keys(Keys.PAGE_DOWN)
                     if i < scroll_count - 1:
-                        time.sleep(0.5)
+                        time.sleep(2)
 
                 source = driver.page_source
                 if self._is_captcha(source):
@@ -555,9 +558,9 @@ class Parser:
                 return source
 
             except Exception as err:
-                err_msg = f'Error getting url: {url}. Error: {self._exc(err)}'
+                err_msg = f'Error getting content for url: {url}. Error: {self._exc(err)}'
                 _err(err_msg)
-                self._sleep(10)
+                self.update_job(status='done', error=err_msg)
                 return
             finally:
                 driver.close()
@@ -603,19 +606,20 @@ class Parser:
 
 def main():
     pass
+    # parser = Parser(region='Екатеринбург')
+    # parser = Parser(1, 2)
+    # parser.parse_product_page(url=TEST_URL2)
+    # parser.parse_product_page(url=TEST_URL3)
+    # source = parser.read_file('product_parsing_job_9_.html')
+    # source = parser.read_file('run1.html')
+    # source = parser.read_file('run2_msk.html')
+    # source = parser.read_file('response1.html')
+    # parser.parse_product_page(source=source)
+    # parser.parse_product_page(url=TEST_URL4)
 
-
-# parser = Parser(region='Екатеринбург')
-# parser = Parser()
-# parser.parse_product_page(url=TEST_URL2)
-# parser.parse_product_page(url=TEST_URL3)
-# source = parser.read_file('3_sellers.html')
-# source = parser.read_file('run1.html')
-# source = parser.read_file('run2_msk.html')
-# source = parser.read_file('response1.html')
-# parser.parse_product_page(source=source)
-
-# parser.parse_product_page(url=TEST_URL4)
+    # parser = Parser(1, 2)
+    # source = parser.read_file('product_parsing_job_13_.html')
+    # parser.parse_product_page(source=source)
 
 
 if __name__ == '__main__':

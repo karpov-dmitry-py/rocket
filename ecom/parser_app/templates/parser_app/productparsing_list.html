@@ -18,11 +18,11 @@
             <h5 class="card-text"><b>Start date:</b> {{ item.start_date }}</h5>
             <h5 class="card-text"><b>End date:</b> {{ item.end_date }}</h5>
             <h5 class="card-text"><b>Status:</b> {{ item.status }}</h5>
-            {% if item.result_file %}
-                <h5 class="card-text"><b><a target="_blank" href="{% static 'parser_app/product/' %}{{ item.result_file }}">Result file</a> {{ item.result_file }}</b></h5>
-            {% else %}
-                <h5 class="card-text"><b>Result file:</b> {{ item.result_file }}</h5>
-            {% endif %}
+            <h5 class="card-text"><b>Result file: </b>
+                {% if item.result_file %}
+                    <a target="_blank" href="{% static 'parser_app/product/' %}{{ item.result_file }}">{{ item.result_file }}</a>
+                {% endif %}
+            </h5>
             <h5 class="card-text"><b>Comment:</b> {{ item.comment }}</h5>
             <h5 class="card-text"><b>Error:</b> {{ item.error }}</h5>
             <h5 class="card-text"><b>Duration:</b> {{ item.duration }}</h5>

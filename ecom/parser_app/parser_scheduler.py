@@ -23,6 +23,7 @@ def process_product_parsing():
         # job.save()
         # _log(f'Changed status of job with id: {job.id} to status: {initial_status}')
 
+    # noinspection PyUnresolvedReferences
     jobs = ProductParsing.objects.filter(status=initial_status)
     for job in jobs:
         job.status = next_status
@@ -31,7 +32,6 @@ def process_product_parsing():
     for job in jobs:
         product = job.product
         region = job.region
-        url = product.url
         db_row = ModelHelper.get_region_codes_by_objects(product, region)
         if not db_row:
             # TODO - error to db for job

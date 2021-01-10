@@ -1,9 +1,12 @@
 import os.path
 import json
 import requests
+from datetime import datetime
 
 from .helpers import _log
 from .helpers import _err
+from .helpers import _now
+from .helpers import _make_aware_time
 
 API_KEY = '85b11ee4b684d93c8f99044a3a4015aa'
 API_BASE_URL = 'https://proxymania.ru/api'
@@ -42,7 +45,13 @@ class ProxyManager:
             _err(f'No available proxies retrieved from provider API: {url}')
             return
         proxies = []
+        now = _now()
         for _dict in proxies_from_api:
+            expire_date = datetime.strptime(_dict.get('expire'), '%Y-%m-%d %H:%M:%S')
+            expire_date_aware = _make_aware_time(expire_date)
+            if now > expire_date_aware:
+                _log(f'Skipped expired proxy with id: {_dict.get("id")}')
+                continue
             user = _dict.get('username')
             pswd = _dict.get('password')
             address = _dict.get('http')
@@ -83,7 +92,7 @@ class ProxyManager:
 
 
 def main():
-    # manager = ProxyManager(get_from_api=False)
+    # manager = ProxyManager(get_from_api=True, save_to_fs=True)
     # proxies = manager.get_proxies()
     pass
 
