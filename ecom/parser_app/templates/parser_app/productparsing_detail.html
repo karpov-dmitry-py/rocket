@@ -1,18 +1,10 @@
 {% extends 'parser_app/base.html' %}
 {% load static %}
 {% block content %}
-
-<div class="card" style="margin-bottom: 30px; margin-top: 30px;">
-    <div class="card-body">
-        <h4 class="card-title"><b>Product Parsings</b></h4>
-        <a href="{% url 'parser-product-parse' %}" class="btn btn-success">Add new</a>
-    </div>
-</div>
-{% for item in items %}
-<ul class="list-group">
-    <li class="list-group-item" style="margin-bottom: 30px;">
+    <li class="list-group-item" style="margin: 25px;">
+        <legend class="border-bottom mb-4">View Product Parsing Job</legend>
         <div class="card-body" style="padding-left: 0rem; padding-bottom: 0.5rem; padding-top: 0.5rem;">
-            <h5 class="card-text"><b>Job id:</b> {{ item.id }}</h5>
+            <h5 class="card-text"><b>ID:</b> {{ item.id }}</h5>
             <h5 class="card-text"><b>Product:</b><a href="{% url 'parser-product-detail' item.product.id %}"> {{ item.product }}</a></h5>
             <h5 class="card-text"><b>Region:</b><a href="{% url 'parser-region-detail' item.region.id %}"> {{ item.region }}</a></h5>
             <h5 class="card-text"><b>Start date:</b> {{ item.start_date }}</h5>
@@ -26,13 +18,10 @@
             <h5 class="card-text"><b>Comment:</b> {{ item.comment }}</h5>
             <h5 class="card-text"><b>Error:</b> {{ item.error }}</h5>
             <h5 class="card-text"><b>Duration:</b> {{ item.duration }}</h5>
-            <a href="{% url 'parser-parsing-product-detail' item.id %}" class="btn btn-primary">View</a>
             <a href="{% url 'parser-parsing-product-update' item.id %}" class="btn btn-info">Edit</a>
             <a href="{% url 'parser-parsing-product-delete' item.id %}" class="btn btn-dark">Delete</a>
+
+
         </div>
-
     </li>
-</ul>
-{% endfor %}
-
 {% endblock content %}

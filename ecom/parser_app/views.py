@@ -179,9 +179,22 @@ class ProductParsingListView(ListView):
     ordering = ['id']
 
 
-class ProductParsingCreateView(CreateView):
+class ProductParsingDetailView(DetailView):
     model = ProductParsing
-    fields = ['product', 'region']
+    context_object_name = 'item'
+    fields = ['product', 'region', 'start_date', 'end_date', 'status', 'result_file', 'comment', 'error',
+              'duration', ]
+
+
+class ProductParsingUpdateView(UpdateView):
+    model = ProductParsing
+    fields = ['product', 'region', 'start_date', 'end_date', 'status', 'result_file', 'comment', 'error',
+              'duration', ]
+    success_url = '/parsing-product'
+
+
+class ProductParsingDeleteView(DeleteView):
+    model = ProductParsing
     success_url = '/parsing-product'
 
 
@@ -192,12 +205,13 @@ def product_parsing(request, pk=None):
         db_row = ModelHelper.get_region_codes_by_ids(product_id, region_id)
         if not db_row:
             messages.error(request, f"Please add region code for selected product's marketplace to db and try again!")
+            # redirecting user to where he came from
             redirect_view_name = request.resolver_match.view_name
             return redirect(redirect_view_name)
         form = ProductParsingCreateForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, f'A new parse job has been created!')
+            messages.success(request, f'A new product parsing job has been created!')
             return redirect('parser-parsing-product-list')
     else:
         if pk is not None:
@@ -216,5 +230,5 @@ def product_parsing(request, pk=None):
     return render(request, 'parser_app/productparsing_form.html', context)
 
 
-# start scheduler
+# start scheduler to monitor db for new parsing jobs
 start_product_parsing()

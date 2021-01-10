@@ -16,55 +16,58 @@
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-<!--<nav class="navbar navbar-expand-lg navbar-dark bg-info">-->
-        <ul class="navbar-nav mr-auto">
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-marketplace-list' %}">Marketplaces</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-category-list' %}">Categories</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-product-list' %}">Products</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-region-list' %}">Regions</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-region-code-list' %}">Region codes</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="#">Categories parsing</a>
-            </li>
-            <li class="nav-item active" style="padding-right: 20px;">
-                <a class="navbar-brand" href="{% url 'parser-parsing-product-list' %}">Products parsing</a>
-            </li>
-        </ul>
+    <!--<nav class="navbar navbar-expand-lg navbar-dark bg-info">-->
+    <ul class="navbar-nav mr-auto">
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-marketplace-list' %}">Marketplaces</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-category-list' %}">Categories</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-product-list' %}">Products</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-region-list' %}">Regions</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-region-code-list' %}">Region codes</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="{% url 'parser-parsing-product-list' %}">Product parsing</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="#">Category parsing</a>
+        </li>
+        <li class="nav-item active" style="padding-right: 20px;">
+            <a class="navbar-brand" href="/admin">Admin</a>
+        </li>
+    </ul>
 </nav>
 <div class="container">
     {% if messages %}
     {% for message in messages %}
-        {% if message.tags == 'error' %}
-            <div class="alert alert-danger" role="alert" style="margin-top:25px">
+    {% if message.tags == 'error' %}
+    <div class="alert alert-danger" role="alert" style="margin-top:25px">
         {% else %}
-            <div class="alert alert-{{ message.tags }}" role="alert" style="margin-top:25px">
+        <div class="alert alert-{{ message.tags }}" role="alert" style="margin-top:25px">
+            {% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
         {% endif %}
-                {{ message }}
-            </div>
-    {% endfor %}
-    {% endif %}
-    {% block content %}{% endblock %}
-</div>
-<!-- Optional JavaScript -->
-<!-- jQuery first, then Popper.js, then Bootstrap JS -->
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
-        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-        crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
-        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-        crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
-        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
-        crossorigin="anonymous"></script>
+        {% block content %}{% endblock %}
+    </div>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+            integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+            crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+            crossorigin="anonymous"></script>
 </body>
 </html>
