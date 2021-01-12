@@ -4,11 +4,11 @@
         <form method="post">
             {% csrf_token %}
             <fieldset class="form-group">
-                <legend class="border-bottom mb-4">Delete Product Parsing Job</legend>
-                <h2>Are you sure to delete this job: "{{ object }}" ?</h2>
+                <legend class="border-bottom mb-4">Delete Category Parsing Job</legend>
+                <h2>Are you sure to delete this job: {{ object }} ?</h2>
             </fieldset>
             <div class="form-group">
-                <a class="btn btn-info" href="{% url 'parser-parsing-product-list' %}">Cancel</a>
+                <a class="btn btn-info" href="{% url 'parser-parsing-category-list' %}">Cancel</a>
                 <button class="btn btn-danger" type="submit">Yes, Delete</button>
             </div>
         </form>

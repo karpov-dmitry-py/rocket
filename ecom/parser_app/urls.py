@@ -34,8 +34,13 @@ from .views import ProductParsingListView
 from .views import ProductParsingDetailView
 from .views import ProductParsingUpdateView
 from .views import ProductParsingDeleteView
-
 from .views import product_parsing
+
+from .views import CategoryParsingListView
+from .views import CategoryParsingDetailView
+from .views import CategoryParsingUpdateView
+from .views import CategoryParsingDeleteView
+from .views import category_parsing
 
 urlpatterns = [
 
@@ -79,7 +84,16 @@ urlpatterns = [
     # parsing product
     path('parsing-product/', ProductParsingListView.as_view(), name='parser-parsing-product-list'),
     path('parsing-product/<int:pk>/', ProductParsingDetailView.as_view(), name='parser-parsing-product-detail'),
-    path('product/parse/', product_parsing, name='parser-product-parse'), # add new parsing job
+    path('product/parse/', product_parsing, name='parser-product-parse'),  # add new parsing job
     path('parsing-product/<int:pk>/update/', ProductParsingUpdateView.as_view(), name='parser-parsing-product-update'),
     path('parsing-product/<int:pk>/delete/', ProductParsingDeleteView.as_view(), name='parser-parsing-product-delete'),
+
+    # category product
+    path('parsing-category/', CategoryParsingListView.as_view(), name='parser-parsing-category-list'),
+    path('parsing-category/<int:pk>/', CategoryParsingDetailView.as_view(), name='parser-parsing-category-detail'),
+    path('category/parse/', category_parsing, name='parser-category-parse'),  # add new parsing job
+    path('parsing-category/<int:pk>/update/', CategoryParsingUpdateView.as_view(),
+         name='parser-parsing-category-update'),
+    path('parsing-category/<int:pk>/delete/', CategoryParsingDeleteView.as_view(),
+         name='parser-parsing-category-delete'),
 ]

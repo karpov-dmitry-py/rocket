@@ -1,0 +1,27 @@
+{% extends 'parser_app/base.html' %}
+{% load static %}
+{% block content %}
+    <li class="list-group-item" style="margin: 25px;">
+        <legend class="border-bottom mb-4">View Category Parsing Job</legend>
+        <div class="card-body" style="padding-left: 0rem; padding-bottom: 0.5rem; padding-top: 0.5rem;">
+            <h5 class="card-text"><b>ID:</b> {{ item.id }}</h5>
+            <h5 class="card-text"><b>Category:</b><a href="{% url 'parser-category-detail' item.category.id %}"> {{ item.category }}</a></h5>
+            <h5 class="card-text"><b>Region:</b><a href="{% url 'parser-region-detail' item.region.id %}"> {{ item.region }}</a></h5>
+            <h5 class="card-text"><b>Start date:</b> {{ item.start_date }}</h5>
+            <h5 class="card-text"><b>End date:</b> {{ item.end_date }}</h5>
+            <h5 class="card-text"><b>Status:</b> {{ item.status }}</h5>
+            <h5 class="card-text"><b>Result file: </b>
+                {% if item.result_file %}
+                    <a target="_blank" href="{% static 'parser_app/category/' %}{{ item.result_file }}">{{ item.result_file }}</a>
+                {% endif %}
+            </h5>
+            <h5 class="card-text"><b>Comment:</b> {{ item.comment }}</h5>
+            <h5 class="card-text"><b>Error:</b> {{ item.error }}</h5>
+            <h5 class="card-text"><b>Duration:</b> {{ item.duration }}</h5>
+            <a href="{% url 'parser-parsing-category-update' item.id %}" class="btn btn-info">Edit</a>
+            <a href="{% url 'parser-parsing-category-delete' item.id %}" class="btn btn-dark">Delete</a>
+
+
+        </div>
+    </li>
+{% endblock content %}
