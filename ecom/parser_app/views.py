@@ -20,7 +20,7 @@ from .models import CategoryParsing
 from .forms import ProductParsingCreateForm
 from .forms import CategoryParsingCreateForm
 from .models import ModelHelper
-from .parser_scheduler import start_product_parsing
+from .parser_scheduler import start_parsing
 
 
 # marketplace
@@ -290,7 +290,5 @@ def category_parsing(request, pk=None):
     context = {'form': form}
     return render(request, 'parser_app/categoryparsing_form.html', context)
 
-
 # start scheduler to monitor db for new parsing jobs
-# TODO - change to category parsing
-# start_product_parsing()
+start_parsing()

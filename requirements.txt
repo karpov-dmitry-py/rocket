@@ -6,3 +6,4 @@ selenium==3.141.0
 selenium-wire==2.1.2
 django-crispy-forms==1.10.0
 APScheduler==3.6.3
+2captcha-python==1.0.3

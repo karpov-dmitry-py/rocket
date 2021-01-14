@@ -24,40 +24,30 @@ from .helpers import _now
 from .helpers import _now_as_str
 
 
-# TEST_URL2 = 'https://pokupki.market.yandex.ru/product/dushevaia-stoika-bravat-opal-f6125183cp-a-rus-khrom/' \
-#             '13189953?show-uid=16070308423349822257006001&offerid=htYSTQ69Z9t2xYMvPwYopA'
-#
-# TEST_URL3 = 'https://pokupki.market.yandex.ru/product/gigienicheskii-dush-vstraivaemyi-lemark-plus-advance-' \
-#             'lm1219c-khrom/1881772768?show-uid=16078875381409844855606004&offerid=ZWkBGAvM5Lnr7EcC06lmpg'
-#
-# TEST_URL4 = 'https://pokupki.market.yandex.ru/product/dushevoi-nabor-garnitur-vidima-orion-b4227aa-ba004aa-khrom/' \
-#             '1632236?show-uid=16084771131237112433306006&offerid=sLc39hfqHXlRrapRlpcaOA'
-
-
 class Parser:
 
     def __init__(self, job, region_code, _type='product'):
 
         if not region_code:
-            err_msg = f'Found no region code in db for product parsing job: {job.id}'
+            err_msg = f'Found no region code in db for {_type} parsing job: {job.id}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
             return
-
-        self._proxies = ProxyManager(get_from_api=False).get_proxies()
-        self._timeout = (3.05, 10)
-        self._set_session()
-
-        product = job.product
-        self._job = job
-        self._url = product.url
-        self._region_code = region_code
-        self._region = str(job.region)
 
         if _type not in self._supported_parsing_types():
             err_msg = f'Parser error! Wrong parsing type ("{_type}") passed in for job with id: {self._job.id}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+
+        self._proxies = ProxyManager(get_from_api=False).get_proxies()
+        self._timeout = (3.05, 10)
+        self._set_session()
+
+        _object = job.product if _type == 'product' else job.category
+        self._job = job
+        self._url = _object.url
+        self._region_code = region_code
+        self._region = str(job.region)
 
         self.update_job()
         if _type == 'product':
