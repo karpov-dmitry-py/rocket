@@ -1,48 +1,108 @@
+import time
 import os.path
-import requests
+# import requests
 # noinspection PyUnresolvedReferences,PyPackageRequirements
 from twocaptcha import TwoCaptcha
+# noinspection PyPackageRequirements
+from twocaptcha import SolverExceptions
+# noinspection PyPackageRequirements
+from twocaptcha import ValidationException
+# noinspection PyPackageRequirements
+from twocaptcha import NetworkException
+# noinspection PyPackageRequirements
+from twocaptcha import ApiException
+# noinspection PyPackageRequirements
+from twocaptcha import TimeoutException
 
 from helpers import _err
 from helpers import _log
 
 API_KEY = '47bda1e16c81d8db3d36e9af0bc79b1f'
+DEFAULT_TIMEOUT = 120
+SLEEP_PAUSE = 5
 
 
 class Solver:
     CONFIG = {
         'apiKey': API_KEY,
         'pollingInterval': 5,
+        'defaultTimeout': DEFAULT_TIMEOUT,
     }
 
-    def __init__(self):
+    def __init__(self, ):
         self.api = TwoCaptcha(**Solver.CONFIG)
+        self.result = None
 
-    # @classmethod
-    # def __new__(cls, *args, **kwargs):
-    #     return TwoCaptcha(**Solver.CONFIG)
+    @staticmethod
+    def _exc(err):
+        return f'{_err.__class__.__name__}: {err}'
 
+    def _error(self, err_msg):
+        self.result['error'] = err_msg
 
-def test():
-    url = 'https://www.citilink.ru/captcha/image/427fd96bd668272a25003cabd075cdd9/?_=1610653065'
-    response = requests.get(url=url)
-    if not response.status_code == 200:
-        _err(f'Bad response: {response.status_code, response.text}')
-        return
-    base_dir = os.path.dirname(__file__)
-    save_path = os.path.join(base_dir, 'captcha_tests/image.jpeg')
-    with open(save_path, 'wb') as file:
-        file.write(response.content)
-        _log(f'Saved content to file: {save_path}')
+    @staticmethod
+    def _is_timeout(start_time):
+        return time.time() > start_time + DEFAULT_TIMEOUT
+
+    def solve(self, image_path, job_id):
+        self.result = {
+            'image_path': image_path,
+            'job_id': job_id,
+            'captcha_id': None,
+            'code': None,
+            'error': None
+        }
+        if not os.path.isfile(image_path):
+            err_msg = f'Image file not found for job {job_id}: {image_path}'
+            _err(err_msg)
+            self._error(err_msg)
+            return self.result
+
+        start_time = time.time()
+        while not self._is_timeout(start_time):
+            try:
+                result = solver.api.normal(image_path, caseSensitive=1)
+            except (SolverExceptions, ValidationException, ApiException, Exception) as err:
+                err_msg = f'API related exception occurred: {self._error(err)}'
+                _err(err_msg)
+                self._error(err_msg)
+                return self.result
+            except (NetworkException, TimeoutException) as err:
+                err_msg = f'API related exception occurred: {self._error(err)}. Will try again in {SLEEP_PAUSE} secs.'
+                _err(err_msg)
+                time.sleep(SLEEP_PAUSE)
+                continue
+
+            if isinstance(result, str):
+                err_msg = f'Received string response (probably server error). Will try again in {SLEEP_PAUSE} secs.'
+                _err(err_msg)
+                time.sleep(SLEEP_PAUSE)
+                continue
+
+            captcha_id = result.get('captchaId')
+            code = result.get('code')
+            self.result['captcha_id'] = captcha_id
+            self.result['code'] = code
+            msg = f'Received captcha result for job {job_id}. Captcha id: {captcha_id}, code: {code}'
+            _log(msg)
+            return self.result
+
+        err_msg = f'Time out occurred: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
+        _err(err_msg)
+        self._error(err_msg)
+        return self.result
+
+    def report(self, _id, correct=True):
+        try:
+            return self.api.report(_id, correct)
+        except (NetworkException, Exception):
+            pass
 
 
 if __name__ == '__main__':
     base_dir = os.path.dirname(__file__)
-    image_path = os.path.join(base_dir, 'captcha_tests/image.jpeg')
+    image = os.path.join(base_dir, 'captcha_tests/image.jpeg')
     solver = Solver()
-    result = solver.api.normal(image_path, caseSensitive=1)
-    print(result)
-    print(type(result))
-    # _id = '65770696464'
-    # result = solver.api.get_result(_id)
-    # solver.api.report(_id, False)
+    res = solver.solve(image, 1)
+    print(res)
+    print(type(res))
