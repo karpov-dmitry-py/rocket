@@ -18,6 +18,7 @@ from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
 
 from .proxy import ProxyManager
+from .captcha import Solver as CaptchaSolver
 from .helpers import _log
 from .helpers import _err
 from .helpers import _now
@@ -48,15 +49,44 @@ class Parser:
         self._url = _object.url
         self._region_code = region_code
         self._region = str(job.region)
+        self.solver = CaptchaSolver()
 
         self.update_job()
         if _type == 'product':
-            self.parse_product_page(url=self._url)
+            self.parse_product(url=self._url)
         elif _type == 'category':
             self.parse_category(url=self._url)
 
     def _set_session(self):
         self._session = requests.Session()
+
+    def _parse_captcha_image(self, html_source, job_id):
+        result = {
+            'job_id': job_id,
+            'image_path': None,
+            'error': None
+        }
+        target = 'https://pokupki.market.yandex.ru/captchaimg'
+        try:
+            _end = html_source.split(target)[1].split('"')[0]
+            url = f'{target}{_end}'
+            download_image_result = self._download_content(url=url)
+
+            if error := download_image_result.get('error'):
+                result['error'] = error
+                return result
+
+            result['image_path'] = download_image_result.get('save_path')
+            return result
+
+        except (IndexError, Exception) as err:
+            err_msg = f'Failed to parse image_url from source for job {job_id}. Error: {str(err)}'
+            _err(err_msg)
+            result['error'] = err_msg
+            return result
+
+    def _solve_captcha(self, image_path):
+        pass
 
     @staticmethod
     def _supported_parsing_types():
@@ -88,12 +118,14 @@ class Parser:
 
     @staticmethod
     def _save_content(content, filename):
-        path = os.path.join(os.path.dirname(__file__), filename)
+        save_dir = 'saved_content'
+        path = os.path.join(os.path.dirname(__file__), save_dir, filename)
         with open(path, 'w') as f:
             f.write(content)
+        _log(f'Saved content to file: {path}')
 
     def _prepare_url(self, url):
-        # TODO - individual logic for each marketplace; only Yandex Pokupki is implemented so far
+        # TODO - implement individual logic for each marketplace; only Yandex Pokupki is implemented so far
         result = f'{url}&lr={self._region_code}'
         return result
 
@@ -165,8 +197,7 @@ class Parser:
     def parse_category(self, url):
         pass
 
-    def parse_product_page(self, url=None, source=None):
-
+    def parse_product(self, url=None, source=None):
         if not (url or source):
             err_msg = f'No url or source provided for parsing: {url}'
             _err(err_msg)
@@ -175,7 +206,15 @@ class Parser:
 
         if url and not source:
             url = self._prepare_url(url)
-            source = self._get_source(url)
+            get_source_result = self._get_source(url)
+            if error := get_source_result.get('error'):
+                err_msg = f'Error occurred when getting source for url: {url}.' \
+                          f'Error: {error}'
+                _err(err_msg)
+                self.update_job(status='done', error=err_msg)
+                return
+
+            source = get_source_result.get('source')
             if not source:
                 err_msg = f'No content received for url: {url}'
                 _err(err_msg)
@@ -515,10 +554,10 @@ class Parser:
         if not self._proxies:
             err_msg = 'No available proxies found!'
             _err(err_msg)
-            return
+            return {'error': err_msg}
 
         proxies_count = len(self._proxies)
-        max_attempts = proxies_count
+        max_attempts = proxies_count * 2  # attempts number
         attempts = 0
         last_used_proxy = None
 
@@ -535,7 +574,6 @@ class Parser:
             driver = self._create_webdriver(proxy=proxy)
             try:
                 driver.get(url)
-
                 elem = driver.find_element_by_tag_name('html')
                 scroll_count = 11
                 for i in range(1, scroll_count):
@@ -545,7 +583,7 @@ class Parser:
 
                 source = driver.page_source
                 if self._is_captcha(source):
-                    _log(f'Received captcha for url: {url}. Will try again')
+                    _log(f'Received captcha for url: {url}. Will try to solve it.')
                     self._sleep(3)
                     attempts += 1
                     continue
@@ -565,30 +603,35 @@ class Parser:
         err_msg = f'Tried all {proxies_count} proxies and FAILED to get content of product page: {url}.'
         _err(err_msg)
 
-    def get(self, url):
-        url = self._prepare_url(url)
+    def _download_content(self, url, goal='captcha image url'):
         for proxy in self._proxies:
             self._session.proxies = proxy
             response = self._session.get(url, timeout=self._timeout)
 
-            # error
+            # error handling
             if response.status_code != 200:
-                err_msg = f'Error received when requesting url: {url}. \n' \
+                err_msg = f' Non-200 response received when downloading {goal}: {url}. \n' \
                           f'Proxy used: {proxy}.\n' \
                           f'Response status: {response.status_code}. ' \
                           f'Response text: {response.text}'
                 _err(err_msg)
                 continue
 
-            # success
-            file_name = 'response.html'
-            with open(file_name, 'w') as f:
-                f.write(response.text)
-            _log(f'Successfully saved response to file: {file_name}')
-            return
+            # save content
+            raw = response.content
+            filename = str(uuid.uuid4())
+            base_dir = os.path.dirname(__file__)
+            save_dir = 'captcha_tmp'
+            save_path = os.path.join(base_dir, save_dir, filename)
+            with open(save_path, 'wb') as f:
+                f.write(raw)
+            _log(f'Successfully saved response to file: {save_path}')
+            return {'save_path': save_path}
 
-        err_msg = f'No content received with all my proxies tried out! Check my proxies!'
+        err_msg = f'No content received for {goal} with all {len(self._proxies)} proxies tried out! Check proxies!' \
+                  f'URL: {url}'
         _err(err_msg)
+        return {'error': err_msg}
 
     def post(self, url, data, headers, cookies):
         self._session.headers.update(headers)

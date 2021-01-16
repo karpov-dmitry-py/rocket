@@ -79,6 +79,7 @@ class Solver:
                 time.sleep(SLEEP_PAUSE)
                 continue
 
+            # TODO - delete image for this job
             captcha_id = result.get('captchaId')
             code = result.get('code')
             self.result['captcha_id'] = captcha_id
@@ -87,6 +88,7 @@ class Solver:
             _log(msg)
             return self.result
 
+        # TODO - delete image for this job
         err_msg = f'Time out occurred: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
         _err(err_msg)
         self._error(err_msg)
