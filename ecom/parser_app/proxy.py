@@ -24,6 +24,7 @@ class ProxyManager:
 
         if get_from_api:
             self._get_proxies_from_api()
+        # get from fs
         else:
             self._get_proxies_from_fs()
 

@@ -1,5 +1,6 @@
 import time
 import uuid
+from builtins import Exception
 from typing import Dict, Any
 from datetime import datetime
 from datetime import timedelta
@@ -29,6 +30,7 @@ class Parser:
 
     def __init__(self, job, region_code, _type='product'):
 
+        self._job = job
         if not region_code:
             err_msg = f'Found no region code in db for {_type} parsing job: {job.id}'
             _err(err_msg)
@@ -36,20 +38,33 @@ class Parser:
             return
 
         if _type not in self._supported_parsing_types():
-            err_msg = f'Parser error! Wrong parsing type ("{_type}") passed in for job with id: {self._job.id}'
+            err_msg = f'Wrong parsing type ("{_type}") passed in for job: {job.id}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
 
-        self._proxies = ProxyManager(get_from_api=False).get_proxies()
+        try:
+            self._proxies = ProxyManager(get_from_api=False).get_proxies()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, Exception) as err:
+            err_msg = f'Failed to get proxies from Proxy class. Error: {self._exc(err)}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+
+        msg = f'Retrieved {len(self._proxies)} active proxies from Proxy class.'
+        _log(msg)
+        if not self._proxies:
+            err_msg = msg
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+
         self._timeout = (3.05, 10)
         self._set_session()
 
         _object = job.product if _type == 'product' else job.category
-        self._job = job
         self._url = _object.url
         self._region_code = region_code
         self._region = str(job.region)
-        self.solver = CaptchaSolver()
+        self._solver = CaptchaSolver()
+        self._stats = None
 
         self.update_job()
         if _type == 'product':
@@ -60,18 +75,22 @@ class Parser:
     def _set_session(self):
         self._session = requests.Session()
 
-    def _parse_captcha_image(self, html_source, job_id):
+    def _parse_captcha_image(self, html_source, job_id=None):
+        job_id = job_id or self._job.id
         result = {
             'job_id': job_id,
             'image_path': None,
             'error': None
         }
         target = 'https://pokupki.market.yandex.ru/captchaimg'
+        msg = f'Trying to parse captcha image url from source for job {job_id}.'
+        _log(msg)
         try:
             _end = html_source.split(target)[1].split('"')[0]
             url = f'{target}{_end}'
+            msg = f'Successfully parsed captcha image url from source for job {job_id}. URL: {url}'
+            _log(msg)
             download_image_result = self._download_content(url=url)
-
             if error := download_image_result.get('error'):
                 result['error'] = error
                 return result
@@ -79,14 +98,30 @@ class Parser:
             result['image_path'] = download_image_result.get('save_path')
             return result
 
-        except (IndexError, Exception) as err:
-            err_msg = f'Failed to parse image_url from source for job {job_id}. Error: {str(err)}'
+        except (IndexError, AttributeError, Exception) as err:
+            err_msg = f'Failed to parse image_url from source for job {job_id}. Error: {self._exc(err)}'
             _err(err_msg)
             result['error'] = err_msg
             return result
 
-    def _solve_captcha(self, image_path):
-        pass
+    def _solve_captcha(self, source, job_id=None):
+        job_id = job_id or self._job.id
+        result = {
+            'code': None,
+            'error': None
+        }
+        get_image_path_result = self._parse_captcha_image(source)
+        if error := get_image_path_result.get('error'):
+            result['error'] = error
+            return result
+
+        image_path = get_image_path_result.get('image_path')
+        solve_result = self._solver.solve(image_path, job_id)
+        if error := solve_result.get('error'):
+            result['error'] = error
+            return result
+
+        return solve_result
 
     @staticmethod
     def _supported_parsing_types():
@@ -130,14 +165,14 @@ class Parser:
         return result
 
     @staticmethod
-    def _create_webdriver(proxy, time_to_wait=10):
+    def _create_webdriver(proxy):
         options = Options()
         options.headless = True
         wire_options = {
             'proxy': proxy
         }
         driver = webdriver.Firefox(options=options, seleniumwire_options=wire_options)
-        driver.implicitly_wait(time_to_wait)  # secs
+
         return driver
 
     @staticmethod
@@ -202,7 +237,7 @@ class Parser:
             err_msg = f'No url or source provided for parsing: {url}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
-            return
+            return {'error': err_msg}
 
         if url and not source:
             url = self._prepare_url(url)
@@ -212,7 +247,7 @@ class Parser:
                           f'Error: {error}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
-                return
+                return {'error': err_msg}
 
             source = get_source_result.get('source')
             if not source:
@@ -550,18 +585,50 @@ class Parser:
             _log(f'..............{i}')
             time.sleep(1)
 
-    def _get_source(self, url):
-        if not self._proxies:
-            err_msg = 'No available proxies found!'
-            _err(err_msg)
-            return {'error': err_msg}
+    @staticmethod
+    def _helping_actions(driver, url, time_to_wait=0, scroll_page=True):
+        if time_to_wait:
+            driver.implicitly_wait(time_to_wait)  # secs
+        driver.get(url)
 
+        # scroll page
+        if scroll_page:
+            elem = driver.find_element_by_tag_name('html')
+            scroll_count = 11
+            for i in range(1, scroll_count):
+                elem.send_keys(Keys.PAGE_DOWN)
+                if i < scroll_count - 1:
+                    time.sleep(2)
+
+    def _get_captcha_input_elements(self, driver):
+        result = {
+            'input': None,
+            'submit': None,
+            'error': None
+        }
+
+        _input = 'input-wrapper__content'
+        _submit = 'submit'
+
+        try:
+            result['input'] = driver.find_element_by_class_name(_input)
+            result['submit'] = driver.find_element_by_class_name(_submit)
+        except (AttributeError, Exception) as err:
+            err_msg = f'Failed to parse captcha input elements from source. Error: {self._exc(err)}'
+            _err(err_msg)
+            result['error'] = err_msg
+
+        return result
+
+    def _get_source(self, url, _type='product', time_to_wait=10, scroll_page=True):
         proxies_count = len(self._proxies)
-        max_attempts = proxies_count * 2  # attempts number
         attempts = 0
         last_used_proxy = None
+        while attempts <= proxies_count:
+            attempts += 1
+            msg = f'Attempt {attempts}. Getting source of {_type} page: {url}'
+            _log(msg)
 
-        while attempts <= max_attempts:
             # pick random proxy but not the last one used
             if proxies_count > 1:
                 while True:
@@ -571,37 +638,61 @@ class Parser:
                         break
             else:
                 proxy = self._proxies[0]
+
             driver = self._create_webdriver(proxy=proxy)
             try:
-                driver.get(url)
-                elem = driver.find_element_by_tag_name('html')
-                scroll_count = 11
-                for i in range(1, scroll_count):
-                    elem.send_keys(Keys.PAGE_DOWN)
-                    if i < scroll_count - 1:
-                        time.sleep(2)
-
+                self._helping_actions(driver, url, time_to_wait, scroll_page)
                 source = driver.page_source
-                if self._is_captcha(source):
-                    _log(f'Received captcha for url: {url}. Will try to solve it.')
-                    self._sleep(3)
-                    attempts += 1
-                    continue
+                if not self._is_captcha(source):
+                    _log(f'Received source for url: {url}')
+                    return {'source': source}
 
-                _log(f'Received content for url: {url}')
-                return source
+                # got captcha
+                _log(f'Received captcha for url: {url}. Will try to solve it.')
+                captcha_attempts = 0
+                captcha_max_attempts = 10
+                captcha_submit_pause = 10  # secs
+                while captcha_attempts <= captcha_max_attempts:
+                    captcha_attempts += 1
+
+                    elements = self._get_captcha_input_elements(driver)
+                    if error := elements.get('error'):
+                        return {'error': f'captcha get inputs from source error: {error}'}
+
+                    solve_result = self._solve_captcha(source)
+                    if error := solve_result.get('error'):
+                        return {'error': f'captcha solve error: {error}'}
+
+                    # submit captcha
+                    code = solve_result.get('code')
+                    elements['input'].send_keys(code)
+                    elements['submit'].click()
+                    msg = f'Submitted captcha form and now sleeping for {captcha_submit_pause} secs.'
+                    _log(msg)
+                    time.sleep(captcha_submit_pause)
+
+                    self._helping_actions(driver, url, time_to_wait, scroll_page)
+                    source = driver.page_source
+                    if not self._is_captcha(source):
+                        break
+                else:
+                    err_msg = f'Failed to solve captcha after {captcha_attempts} attempts for job {self._job.id}.' \
+                              f' URL: {url}'
+                    _err(err_msg)
+                    return {'error': f'captcha max attempts error: {err_msg}'}
 
             except Exception as err:
                 err_msg = f'Error getting content for url: {url}. Error: {self._exc(err)}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
-                return
+                return {'error': err_msg}
             finally:
                 driver.close()
                 driver.quit()
 
-        err_msg = f'Tried all {proxies_count} proxies and FAILED to get content of product page: {url}.'
+        err_msg = f'Tried all {proxies_count} proxies and FAILED to get content of {_type} page: {url}.'
         _err(err_msg)
+        return {'error': err_msg}
 
     def _download_content(self, url, goal='captcha image url'):
         for proxy in self._proxies:
@@ -633,6 +724,7 @@ class Parser:
         _err(err_msg)
         return {'error': err_msg}
 
+    # not used
     def post(self, url, data, headers, cookies):
         self._session.headers.update(headers)
         response = self._session.post(url=url, data=data, cookies=cookies)
