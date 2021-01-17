@@ -64,7 +64,11 @@ class Parser:
         self._region_code = region_code
         self._region = str(job.region)
         self._solver = CaptchaSolver()
+        # TODO stats
         self._stats = None
+        self._type = _type
+        self._result_file_path = None
+        self._result_file_name = None
 
         self.update_job()
         if _type == 'product':
@@ -229,8 +233,36 @@ class Parser:
             if any(target in str(div).lower() for target in targets):
                 div.decompose()
 
-    def parse_category(self, url):
-        pass
+    def parse_category(self, url, source=None):
+        job_id = self._job.id
+        url = self._prepare_url(url)
+        get_category_source_result = source or self._get_source(url, _type='category', time_to_wait=0,
+                                                                scroll_page=False)
+        if error := get_category_source_result.get('error'):
+            err_msg = f'Failed to get category page source for job {job_id}. Error: {error}'
+            self.update_job(status='done', error=err_msg)
+            return
+
+        filename = f'category parsing job {job_id} content.html'
+        source = get_category_source_result.get('source')
+        self._save_content(source, filename)
+
+        try:
+            soup = BeautifulSoup(source, 'lxml')
+        except Exception as err:
+            err_msg = f'Failed to build bs4 tree from source of url: {url}. ' \
+                      f'Error: {self._exc(err)}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+            return
+
+        # products_count = soup.find("div", class_="b_2StYqKhlBr b_1wAXjGKtqe")
+        # < div
+        #
+        # class ="b_2StYqKhlBr b_1wAXjGKtqe" data-tid="5d0ee2c8" > Вы посмотрели < !-- -->24 < !-- --> из < !-- -->2951 < !-- --> товаров < / div >
+
+
+
 
     def parse_product(self, url=None, source=None):
         if not (url or source):
@@ -251,7 +283,7 @@ class Parser:
 
             source = get_source_result.get('source')
             if not source:
-                err_msg = f'No content received for url: {url}'
+                err_msg = f'No content (empty content) received for url: {url}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
                 return
@@ -549,21 +581,37 @@ class Parser:
     def save_to_scv(self, data: Dict[str, Any]) -> None:
         data['parse_date'] = _now_as_str()
         data['region'] = self._region
-        base_dir = os.path.dirname(__file__)
-        result_dir = 'static/parser_app/product'
-        _id = str(uuid.uuid4())
-        filename = f'product_parsing_job_{self._job.id}_{_id}.csv'
-        full_path = os.path.join(base_dir, result_dir, filename)
+        job_id = self._job.id
+        if not self._result_file_path:
+            base_dir = os.path.dirname(__file__)
+            result_dir = f'static/parser_app/{self._type}'
+            _id = str(uuid.uuid4())
+            filename = f'{self._type}_parsing_job_{job_id}_{_id}.csv'
+            full_path = os.path.join(base_dir, result_dir, filename)
+            self._result_file_path = full_path
+            self._result_file_name = filename
         try:
-            with open(full_path, 'w', encoding='utf8', newline='') as csv_file:
+            with open(self._result_file_path, 'a', encoding='utf8', newline='') as csv_file:
                 fieldnames = [key for key in data.keys()]
                 writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames, dialect=csv.excel)
-                writer.writeheader()
+
+                # file does not exist yet
+                if not os.path.exists(self._result_file_path):
+                    writer.writeheader()
+                    writer.writerow(data)
+                    _log(f'Successfully created file for job {job_id}: {self._result_file_path}')
+                    # TODO - stats
+                    self.update_job(result_file=self._result_file_name)
+                    return
+
+                # file exists
+                # TODO - stats
                 writer.writerow(data)
-            _log(f'Successfully saved file: {full_path}')
-            self.update_job(status='done', result_file=filename)
+                _log(f'Successfully updated file for job {job_id}: {self._result_file_path}')
+                # self.update_job()
+
         except Exception as err:
-            err_msg = f'Failed to save file: {full_path}. Error: {self._exc(err)}'
+            err_msg = f'Failed to create/update file: {self._result_file_path}. Error: {self._exc(err)}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
 
@@ -614,7 +662,7 @@ class Parser:
             result['input'] = driver.find_element_by_class_name(_input)
             result['submit'] = driver.find_element_by_class_name(_submit)
         except (AttributeError, Exception) as err:
-            err_msg = f'Failed to parse captcha input elements from source. Error: {self._exc(err)}'
+            err_msg = f'Failed to parse captcha input elements from source with webdriver. Error: {self._exc(err)}'
             _err(err_msg)
             result['error'] = err_msg
 
@@ -652,12 +700,15 @@ class Parser:
                 captcha_attempts = 0
                 captcha_max_attempts = 10
                 captcha_submit_pause = 10  # secs
+
                 while captcha_attempts <= captcha_max_attempts:
                     captcha_attempts += 1
+                    msg = f'Attempt {attempts}. Solving captcha of {_type} page: {url}'
+                    _log(msg)
 
                     elements = self._get_captcha_input_elements(driver)
                     if error := elements.get('error'):
-                        return {'error': f'captcha get inputs from source error: {error}'}
+                        return {'error': f'captcha get input elements from source error: {error}'}
 
                     solve_result = self._solve_captcha(source)
                     if error := solve_result.get('error'):
@@ -673,6 +724,7 @@ class Parser:
 
                     self._helping_actions(driver, url, time_to_wait, scroll_page)
                     source = driver.page_source
+                    # TODO - report good or bad to captcha api
                     if not self._is_captcha(source):
                         break
                 else:

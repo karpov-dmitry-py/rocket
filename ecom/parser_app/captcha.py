@@ -14,8 +14,8 @@ from twocaptcha import ApiException
 # noinspection PyPackageRequirements
 from twocaptcha import TimeoutException
 
-from helpers import _err
-from helpers import _log
+from .helpers import _err
+from .helpers import _log
 
 API_KEY = '47bda1e16c81d8db3d36e9af0bc79b1f'
 DEFAULT_TIMEOUT = 120
