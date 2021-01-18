@@ -1,9 +1,11 @@
+import math
 import time
 import uuid
 from builtins import Exception
 from typing import Dict, Any
 from datetime import datetime
 from datetime import timedelta
+from urllib.parse import urljoin
 
 import requests
 import csv
@@ -28,7 +30,7 @@ from .helpers import _now_as_str
 
 class Parser:
 
-    def __init__(self, job, region_code, _type='product'):
+    def __init__(self, job, region_code, _type='category'):
 
         self._job = job
         if not region_code:
@@ -41,13 +43,15 @@ class Parser:
             err_msg = f'Wrong parsing type ("{_type}") passed in for job: {job.id}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+            return
 
         try:
-            self._proxies = ProxyManager(get_from_api=False).get_proxies()
+            self._proxies = ProxyManager(get_from_api=True).get_proxies()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, Exception) as err:
             err_msg = f'Failed to get proxies from Proxy class. Error: {self._exc(err)}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+            return
 
         msg = f'Retrieved {len(self._proxies)} active proxies from Proxy class.'
         _log(msg)
@@ -55,6 +59,7 @@ class Parser:
             err_msg = msg
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+            return
 
         self._timeout = (3.05, 10)
         self._set_session()
@@ -64,8 +69,7 @@ class Parser:
         self._region_code = region_code
         self._region = str(job.region)
         self._solver = CaptchaSolver()
-        # TODO stats
-        self._stats = None
+        self._stats = dict()
         self._type = _type
         self._result_file_path = None
         self._result_file_name = None
@@ -74,10 +78,25 @@ class Parser:
         if _type == 'product':
             self.parse_product(url=self._url)
         elif _type == 'category':
-            self.parse_category(url=self._url)
+            try:
+                self.parse_category(url=self._url)
+            except (AttributeError, Exception) as err:
+                err_msg = f'Failed in parse category method. Error: {self._exc(err)}'
+                _err(err_msg)
+                self.update_job(status='done', error=err_msg)
+                return
 
     def _set_session(self):
         self._session = requests.Session()
+
+    def _current_state(self):
+        if not self._stats:
+            return
+        total = self._stats.get('total')
+        current = self._stats.get('current')
+        percent = round(current / total, 2)
+        result = f'processing {current} of {total} products: {percent}%'
+        return result
 
     def _parse_captcha_image(self, html_source, job_id=None):
         job_id = job_id or self._job.id
@@ -135,8 +154,10 @@ class Parser:
         )
 
     def update_job(self, job=None, status=None, result_file=None, error=None):
+        # TODO  - STATS
         progress_status = 'progress'
         final_status = 'done'
+        need_stats_statuses = (progress_status, final_status)
 
         job = job or self._job
         status = status or progress_status
@@ -148,10 +169,12 @@ class Parser:
         if error:
             job.error = error
 
-        if status == final_status:
+        if status in need_stats_statuses:
             job.end_date = _now()
             delta = job.end_date - job.start_date
             job.duration = round(delta.total_seconds(), 2)
+            if state := self._current_state():
+                job.comment = state
 
         job.save()
 
@@ -163,9 +186,11 @@ class Parser:
             f.write(content)
         _log(f'Saved content to file: {path}')
 
-    def _prepare_url(self, url):
+    def _prepare_url(self, url, page_number=None):
         # TODO - implement individual logic for each marketplace; only Yandex Pokupki is implemented so far
         result = f'{url}&lr={self._region_code}'
+        if page_number:
+            result = f'{result}&page={page_number}'
         return result
 
     @staticmethod
@@ -233,36 +258,102 @@ class Parser:
             if any(target in str(div).lower() for target in targets):
                 div.decompose()
 
-    def parse_category(self, url, source=None):
-        job_id = self._job.id
-        url = self._prepare_url(url)
-        get_category_source_result = source or self._get_source(url, _type='category', time_to_wait=0,
-                                                                scroll_page=False)
-        if error := get_category_source_result.get('error'):
-            err_msg = f'Failed to get category page source for job {job_id}. Error: {error}'
-            self.update_job(status='done', error=err_msg)
-            return
-
-        filename = f'category parsing job {job_id} content.html'
-        source = get_category_source_result.get('source')
-        self._save_content(source, filename)
-
+    def _soup(self, source, url=None):
         try:
             soup = BeautifulSoup(source, 'lxml')
+            return {'soup': soup}
         except Exception as err:
             err_msg = f'Failed to build bs4 tree from source of url: {url}. ' \
                       f'Error: {self._exc(err)}'
+            return {'error': err_msg}
+
+    def parse_category(self, url, source=None):
+        job_id = self._job.id
+
+        # get first page
+        if not source:
+            url = self._prepare_url(url)
+            get_source_result = self._get_source(url, _type='category', time_to_wait=0,
+                                                 scroll_page=False)
+            if error := get_source_result.get('error'):
+                err_msg = f'Failed to get category first page source for job {job_id}. Error: {error}'
+                self.update_job(status='done', error=err_msg)
+                return
+            source = get_source_result.get('source')
+            filename = f'category_parsing_job_{job_id}_content.html'
+            # TODO - remove saving after tests
+            self._save_content(source, filename)
+
+        soup_result = self._soup(source, url)
+        if error := soup_result.get('error'):
+            _err(error)
+            self.update_job(status='done', error=error)
+            return
+        soup = soup_result.get('soup')
+
+        # parsing
+        listing_stats = soup.find("div", class_="b_2StYqKhlBr b_1wAXjGKtqe")
+        if not listing_stats:
+            err_msg = 'No listing stats div parsed from category first page'
             _err(err_msg)
-            self.update_job(status='done', error=err_msg)
+            self.update_job(status='done', error=error)
             return
 
-        # products_count = soup.find("div", class_="b_2StYqKhlBr b_1wAXjGKtqe")
-        # < div
-        #
-        # class ="b_2StYqKhlBr b_1wAXjGKtqe" data-tid="5d0ee2c8" > Вы посмотрели < !-- -->24 < !-- --> из < !-- -->2951 < !-- --> товаров < / div >
+        listing_str = listing_stats.text
+        stats = []
+        for word in listing_str.split():
+            if word.isdigit():
+                stats.append(word)
+        if len(stats) < 2:
+            raise ValueError(f'Parsed {len(stats)} stats values from a category first page.')
+        products_per_page, products_total = int(stats[0]), int(stats[1])
+        self._stats['total'] = products_total
+        products_processed = 0
+        pages_count = math.ceil(products_total / products_per_page)
+        base_url = self._job.category.marketplace.url
 
+        # walking the pages
+        for page_number in range(1, pages_count + 1):
+            # get content starting with second page
+            if page_number > 1:
+                current_url = self._prepare_url(url=url, page_number=page_number)
+                get_source_result = self._get_source(current_url, _type='category', time_to_wait=0,
+                                                     scroll_page=False)
+                if error := get_source_result.get('error'):
+                    err_msg = f'Failed to get source for category page #{page_number} for job {job_id}. Error: {error}'
+                    self.update_job(status='done', error=err_msg)
+                    return
+                source = get_source_result.get('source')
+                soup_result = self._soup(source, url)
+                if error := soup_result.get('error'):
+                    err_msg = f'Failed to build bs4 tree for category page #{page_number} for job {job_id}. ' \
+                              f'Error: {error}'
+                    _err(err_msg)
+                    self.update_job(status='done', error=err_msg)
+                    return
+                soup = soup_result.get('soup')
 
+            products = soup.find_all("a", class_="b_3ioN70chUh b_Usp3kX1MNT b_3Uc73lzxcf")
 
+            # products
+            for product in products:
+
+                products_processed += 1
+                self._stats['current'] = products_processed
+                _log(f'Processing product # {products_processed} of {products_total}')
+
+                href = product.attrs.get('href')
+                product_url = urljoin(base_url, href)
+                product_url = self._prepare_url(url=product_url)
+
+                product_parse_result = self.parse_product(url=product_url)
+                if error := product_parse_result.get('error'):
+                    err_msg = f'Parsing product error for url: {product_url}.' \
+                              f'Error: {error}'
+                    _err(err_msg)
+                    self.update_job(status='done', error=err_msg)
+
+            self.update_job(status='done')
 
     def parse_product(self, url=None, source=None):
         if not (url or source):
@@ -286,19 +377,17 @@ class Parser:
                 err_msg = f'No content (empty content) received for url: {url}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
-                return
-            content_save_filename = f'product_parsing_job_{self._job.id}_.html'
-            self._save_content(source, content_save_filename)
-        try:
-            soup = BeautifulSoup(source, 'lxml')
-            self._remove_bad_elements(soup)
-        except Exception as err:
-            err_msg = f'Failed to build bs4 tree from source of url: {url}. ' \
-                      f'Error: {self._exc(err)}'
-            _err(err_msg)
-            self.update_job(status='done', error=err_msg)
-            return
+                return {'error': err_msg}
+            # content_save_filename = f'product_parsing_job_{self._job.id}_.html'
+            # self._save_content(source, content_save_filename)
 
+        soup_result = self._soup(source, url)
+        if error := soup_result.get('error'):
+            _err(error)
+            self.update_job(status='done', error=error)
+            return {'error': error}
+        soup = soup_result.get('soup')
+        self._remove_bad_elements(soup)
         data = self._get_data_empty_dict()
         try:
             # url, id
@@ -409,11 +498,14 @@ class Parser:
                     data['recommend_rate'] = recommend_rate.text
 
             self.save_to_scv(data=data)
+            return {'ok': True}
 
-        except Exception as err:
+
+        except (KeyError, AttributeError, Exception) as err:
             err_msg = f'Failed to parse product page: {data.get("id")}. Error: {self._exc(err)}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+            return {'error': err_msg}
 
     @staticmethod
     def _values(results):
@@ -605,10 +697,9 @@ class Parser:
                     return
 
                 # file exists
-                # TODO - stats
                 writer.writerow(data)
                 _log(f'Successfully updated file for job {job_id}: {self._result_file_path}')
-                # self.update_job()
+                self.update_job()
 
         except Exception as err:
             err_msg = f'Failed to create/update file: {self._result_file_path}. Error: {self._exc(err)}'
