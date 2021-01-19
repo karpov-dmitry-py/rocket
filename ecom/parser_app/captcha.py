@@ -14,8 +14,8 @@ from twocaptcha import ApiException
 # noinspection PyPackageRequirements
 from twocaptcha import TimeoutException
 
-from .helpers import _err
-from .helpers import _log
+from helpers import _err
+from helpers import _log
 
 API_KEY = '47bda1e16c81d8db3d36e9af0bc79b1f'
 DEFAULT_TIMEOUT = 120
@@ -52,10 +52,11 @@ class Solver:
             'code': None,
             'error': None
         }
-        if not os.path.isfile(image_path):
-            err_msg = f'Image file not found for job {job_id}: {image_path}'
+        if not os.path.exists(image_path):
+            err_msg = f'Captcha image file not found for job {job_id}: {image_path}'
             _err(err_msg)
             self._error(err_msg)
+            self.result['error'] = err_msg
             return self.result
 
         start_time = time.time()
@@ -63,12 +64,13 @@ class Solver:
             try:
                 result = solver.api.normal(image_path, caseSensitive=1)
             except (SolverExceptions, ValidationException, ApiException, Exception) as err:
-                err_msg = f'API related exception occurred: {self._error(err)}'
+                err_msg = f'Captcha API related exception occurred: {self._error(err)}'
                 _err(err_msg)
                 self._error(err_msg)
+                self.result['error'] = err_msg
                 return self.result
-            except (NetworkException, TimeoutException) as err:
-                err_msg = f'API related exception occurred: {self._error(err)}. Will try again in {SLEEP_PAUSE} secs.'
+            except (NetworkException, TimeoutException, Exception) as err:
+                err_msg = f'Captcha Network/Timeout exception occurred: {self._error(err)}. Will try again in {SLEEP_PAUSE} secs.'
                 _err(err_msg)
                 time.sleep(SLEEP_PAUSE)
                 continue
@@ -89,9 +91,10 @@ class Solver:
             return self.result
 
         # TODO - delete image for this job
-        err_msg = f'Time out occurred: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
+        err_msg = f'Captcha time out occurred: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
         _err(err_msg)
         self._error(err_msg)
+        self.result['error'] = err_msg
         return self.result
 
     def report(self, _id, correct=True):
@@ -103,7 +106,8 @@ class Solver:
 
 if __name__ == '__main__':
     base_dir = os.path.dirname(__file__)
-    image = os.path.join(base_dir, 'captcha_tests/image.jpeg')
+    # image = os.path.join(base_dir, 'captcha_tests/image.jpeg')
+    image = os.path.join(base_dir, 'captcha_tmp/7612e9f4-88db-41e1-980d-a06853eb951f.jpg')
     solver = Solver()
     res = solver.solve(image, 1)
     print(res)

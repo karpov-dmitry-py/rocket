@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 
 import requests
 import csv
+import os
 import os.path
 from random import choice
 from selenium.webdriver.common.keys import Keys
@@ -81,7 +82,7 @@ class Parser:
             try:
                 self.parse_category(url=self._url)
             except (AttributeError, Exception) as err:
-                err_msg = f'Failed in parse category method. Error: {self._exc(err)}'
+                err_msg = f'Error in parse_category method. Error: {self._exc(err)}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
                 return
@@ -154,7 +155,6 @@ class Parser:
         )
 
     def update_job(self, job=None, status=None, result_file=None, error=None):
-        # TODO  - STATS
         progress_status = 'progress'
         final_status = 'done'
         need_stats_statuses = (progress_status, final_status)
@@ -170,9 +170,11 @@ class Parser:
             job.error = error
 
         if status in need_stats_statuses:
-            job.end_date = _now()
-            delta = job.end_date - job.start_date
+            now = _now()
+            delta = now - job.start_date
             job.duration = round(delta.total_seconds(), 2)
+            if status == 'done':
+                job.end_date = now
             if state := self._current_state():
                 job.comment = state
 
@@ -352,6 +354,7 @@ class Parser:
                               f'Error: {error}'
                     _err(err_msg)
                     self.update_job(status='done', error=err_msg)
+                    return
 
             self.update_job(status='done')
 
@@ -461,11 +464,10 @@ class Parser:
                 prices.append(main_price)
                 if not old_price:
                     data['old_price'] = main_price
-
-            discount = soup.find("div", class_="b_1KTAcrzTNV")
-            if discount:
-                # TODO - remove discounts of other (not main) sellers
-                data['discount_rate'] = self._numeric(discount.text)
+                if old_price != main_price:
+                    discount = soup.find("div", class_="b_1KTAcrzTNV")
+                    if discount:
+                        data['discount_rate'] = self._numeric(discount.text)
 
             competitor_prices = soup.find_all("span",
                                               class_="b_1pTV0mQZJz b_37FeBjfnZk b_HBgx6P83Bo _brandTheme_default")
@@ -499,7 +501,6 @@ class Parser:
 
             self.save_to_scv(data=data)
             return {'ok': True}
-
 
         except (KeyError, AttributeError, Exception) as err:
             err_msg = f'Failed to parse product page: {data.get("id")}. Error: {self._exc(err)}'
@@ -688,11 +689,10 @@ class Parser:
                 writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames, dialect=csv.excel)
 
                 # file does not exist yet
-                if not os.path.exists(self._result_file_path):
+                if not os.stat(self._result_file_path).st_size:
                     writer.writeheader()
                     writer.writerow(data)
                     _log(f'Successfully created file for job {job_id}: {self._result_file_path}')
-                    # TODO - stats
                     self.update_job(result_file=self._result_file_name)
                     return
 
@@ -815,8 +815,11 @@ class Parser:
 
                     self._helping_actions(driver, url, time_to_wait, scroll_page)
                     source = driver.page_source
-                    # TODO - report good or bad to captcha api
+                    # TODO - report bad to captcha api
                     if not self._is_captcha(source):
+                        # captcha solved successfully
+                        solved_captcha_id = solve_result.get('captcha_id')
+                        self._solver.report(solved_captcha_id)
                         break
                 else:
                     err_msg = f'Failed to solve captcha after {captcha_attempts} attempts for job {self._job.id}.' \
@@ -837,7 +840,7 @@ class Parser:
         _err(err_msg)
         return {'error': err_msg}
 
-    def _download_content(self, url, goal='captcha image url'):
+    def _download_content(self, url, goal='captcha image url', ext='jpg'):
         for proxy in self._proxies:
             self._session.proxies = proxy
             response = self._session.get(url, timeout=self._timeout)
@@ -853,7 +856,7 @@ class Parser:
 
             # save content
             raw = response.content
-            filename = str(uuid.uuid4())
+            filename = f'{str(uuid.uuid4())}.{ext}'
             base_dir = os.path.dirname(__file__)
             save_dir = 'captcha_tmp'
             save_path = os.path.join(base_dir, save_dir, filename)

@@ -1,5 +1,7 @@
 import math
+import os
 from bs4 import BeautifulSoup
+
 
 def test():
     with open('category parsing job 1 content.html') as file:
@@ -18,16 +20,15 @@ def test():
     if len(stats) < 2:
         raise ValueError(f'Parsed {len(stats)} stats values from a category first page.')
     products_per_page, products_total = stats[0], stats[1]
-    pages_count = math.ceil(products_total/products_per_page)
-
+    pages_count = math.ceil(products_total / products_per_page)
 
     products = soup.find_all("a", class_="b_3ioN70chUh b_Usp3kX1MNT b_3Uc73lzxcf")
     pass
 
 
-
-
 if __name__ == '__main__':
-    test()
-
-
+    # test()
+    path = 'test.txt'
+    with open(path, 'a') as file:
+        if not os.stat(path).st_size:
+            print('zero size')
