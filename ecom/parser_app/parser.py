@@ -448,8 +448,22 @@ class Parser:
             if main_image:
                 data['image_url'] = self._image_url(main_image)
 
-            thumbnails = soup.find_all("li", class_="b_3ldhZi3q64")
-            data['image_count'] = len(thumbnails)
+            images = soup.find_all("li", class_="b_3ldhZi3q64")
+            images_count = 0
+            if images:
+                images_count = len(images)
+
+            # more_images_label
+            more_images_label = soup.find("span", class_="b_3OmJUywakO")
+            if more_images_label:
+                try:
+                    more_images_count = int(''.join(char for char in more_images_label.text if char.isdigit()))
+                    images_count += more_images_count
+                except (IndexError, Exception) as err:
+                    err_msg = f'Failed to parse more images label. Error: {self._exc(err)}'
+                    _err(err_msg)
+                    return {'error': err_msg}
+            data['image_count'] = images_count or 1
 
             # prices
             prices = []
@@ -469,21 +483,26 @@ class Parser:
                     if discount:
                         data['discount_rate'] = self._numeric(discount.text)
 
-            competitor_prices = soup.find_all("span",
-                                              class_="b_1pTV0mQZJz b_37FeBjfnZk b_HBgx6P83Bo _brandTheme_default")
+            # competitor_offers
+            seller_count = 1  # main seller
+            competitor_offers = soup.find_all("div", {'data-zone-name': 'alternativeOffer'})
+            if competitor_offers:
+                seller_count += len(competitor_offers)
+                for offer in competitor_offers:
+                    try:
+                        _str = offer.text.split('\xa0')[1]
+                        price = ''.join(char for char in _str if char.isdigit())
+                        prices.append(int(price))
+                    except (IndexError, Exception) as err:
+                        err_msg = f'Failed to parse a competitor price. Error: {self._exc(err)}'
+                        _err(err_msg)
+                        return {'error': err_msg}
+            data['seller_count'] = seller_count
 
-            # competitor_prices = soup.find_all("div", class_="b_3hAFz-Ck8A")
-
-            if competitor_prices:
-                for item in competitor_prices:
-                    price = self._price(item.text)
-                    if price:
-                        prices.append(price)
-
+            # min_price
             min_price = min(prices)
             if min_price:
                 data['min_price'] = min_price
-            data['seller_count'] = len(prices)
 
             # rating, eval, recommendation
             star_rating = soup.find("span", class_="b_3C0DxleA0I")
@@ -815,17 +834,25 @@ class Parser:
 
                     self._helping_actions(driver, url, time_to_wait, scroll_page)
                     source = driver.page_source
-                    # TODO - report bad to captcha api
+
+                    solved_captcha_id = solve_result.get('captcha_id')
                     if not self._is_captcha(source):
                         # captcha solved successfully
-                        solved_captcha_id = solve_result.get('captcha_id')
                         self._solver.report(solved_captcha_id)
-                        break
+                        _log(f'Received source for url: {url}')
+                        return {'source': source}
+
+                    # continue to another captcha attempt
+                    err_msg = f'Incorrect captcha case: {solve_result}'
+                    _err(err_msg)
+                    self._solver.report(solved_captcha_id, False)
+                    continue
+
                 else:
                     err_msg = f'Failed to solve captcha after {captcha_attempts} attempts for job {self._job.id}.' \
                               f' URL: {url}'
                     _err(err_msg)
-                    return {'error': f'captcha max attempts error: {err_msg}'}
+                    return {'error': f'Captcha max attempts {captcha_max_attempts} error: {err_msg}'}
 
             except Exception as err:
                 err_msg = f'Error getting content for url: {url}. Error: {self._exc(err)}'

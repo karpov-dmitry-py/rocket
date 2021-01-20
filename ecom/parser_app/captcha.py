@@ -14,8 +14,8 @@ from twocaptcha import ApiException
 # noinspection PyPackageRequirements
 from twocaptcha import TimeoutException
 
-from helpers import _err
-from helpers import _log
+from .helpers import _err
+from .helpers import _log
 
 API_KEY = '47bda1e16c81d8db3d36e9af0bc79b1f'
 DEFAULT_TIMEOUT = 120
@@ -62,22 +62,22 @@ class Solver:
         start_time = time.time()
         while not self._is_timeout(start_time):
             try:
-                result = solver.api.normal(image_path, caseSensitive=1)
+                result = self.api.normal(image_path, caseSensitive=1)
             except (SolverExceptions, ValidationException, ApiException, Exception) as err:
-                err_msg = f'Captcha API related exception occurred: {self._error(err)}'
+                err_msg = f'Captcha API related exception occurred: {self._exc(err)}'
                 _err(err_msg)
                 self._error(err_msg)
-                self.result['error'] = err_msg
                 return self.result
             except (NetworkException, TimeoutException, Exception) as err:
-                err_msg = f'Captcha Network/Timeout exception occurred: {self._error(err)}. Will try again in {SLEEP_PAUSE} secs.'
+                err_msg = f'Captcha Network/Timeout exception occurred: {self._exc(err)}. ' \
+                          f'Will try again in {SLEEP_PAUSE} secs.'
                 _err(err_msg)
                 time.sleep(SLEEP_PAUSE)
                 continue
 
             if isinstance(result, str):
-                err_msg = f'Received string response (probably server error). Will try again in {SLEEP_PAUSE} secs.'
-                _err(err_msg)
+                msg = f'Received string response (probably server error). Will try again in {SLEEP_PAUSE} secs.'
+                _log(msg)
                 time.sleep(SLEEP_PAUSE)
                 continue
 
@@ -91,10 +91,9 @@ class Solver:
             return self.result
 
         # TODO - delete image for this job
-        err_msg = f'Captcha time out occurred: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
+        err_msg = f'Captcha time out: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
         _err(err_msg)
         self._error(err_msg)
-        self.result['error'] = err_msg
         return self.result
 
     def report(self, _id, correct=True):
