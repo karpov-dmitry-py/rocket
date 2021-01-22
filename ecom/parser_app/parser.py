@@ -70,7 +70,15 @@ class Parser:
         self._region_code = region_code
         self._region = str(job.region)
         self._solver = CaptchaSolver()
-        self._stats = dict()
+        self._stats = {
+            'current': 0,
+            'total': 0,
+            'captcha': {
+                'submitted': 0,
+                'good': 0,
+                'bad': 0
+            }
+        }
         self._type = _type
         self._result_file_path = None
         self._result_file_name = None
@@ -91,12 +99,17 @@ class Parser:
         self._session = requests.Session()
 
     def _current_state(self):
-        if not self._stats:
-            return
-        total = self._stats.get('total')
         current = self._stats.get('current')
-        percent = round(current / total, 2)
-        result = f'processing {current} of {total} products: {percent}%'
+        total = self._stats.get('total')
+
+        if not (current and total):
+            return ''
+
+        percent = round(current / total, 2) * 100
+        _cap = self._stats['captcha']
+        result = f'Done {current} of {total} products: {percent}%. Captcha: submitted: {_cap["submitted"]}, ' \
+                 f'good: {_cap["good"]}, bad: {_cap["bad"]}'
+
         return result
 
     def _parse_captcha_image(self, html_source, job_id=None):
@@ -140,6 +153,7 @@ class Parser:
             return result
 
         image_path = get_image_path_result.get('image_path')
+        self._stats['captcha']['submitted'] += 1
         solve_result = self._solver.solve(image_path, job_id)
         if error := solve_result.get('error'):
             result['error'] = error
@@ -296,7 +310,7 @@ class Parser:
         # parsing
         listing_stats = soup.find("div", class_="b_2StYqKhlBr b_1wAXjGKtqe")
         if not listing_stats:
-            err_msg = 'No listing stats div parsed from category first page'
+            err_msg = 'No product listing stats div parsed from category first page'
             _err(err_msg)
             self.update_job(status='done', error=error)
             return
@@ -307,7 +321,7 @@ class Parser:
             if word.isdigit():
                 stats.append(word)
         if len(stats) < 2:
-            raise ValueError(f'Parsed {len(stats)} stats values from a category first page.')
+            raise ValueError(f'Parsed not enough {len(stats)} products count stats from category first page: {stats}')
         products_per_page, products_total = int(stats[0]), int(stats[1])
         self._stats['total'] = products_total
         products_processed = 0
@@ -335,13 +349,10 @@ class Parser:
                     return
                 soup = soup_result.get('soup')
 
-            products = soup.find_all("a", class_="b_3ioN70chUh b_Usp3kX1MNT b_3Uc73lzxcf")
-
             # products
+            products = soup.find_all("a", class_="b_3ioN70chUh b_Usp3kX1MNT b_3Uc73lzxcf")
             for product in products:
-
                 products_processed += 1
-                self._stats['current'] = products_processed
                 _log(f'Processing product # {products_processed} of {products_total}')
 
                 href = product.attrs.get('href')
@@ -349,6 +360,8 @@ class Parser:
                 product_url = self._prepare_url(url=product_url)
 
                 product_parse_result = self.parse_product(url=product_url)
+                self._stats['current'] = products_processed
+
                 if error := product_parse_result.get('error'):
                     err_msg = f'Parsing product error for url: {product_url}.' \
                               f'Error: {error}'
@@ -356,13 +369,16 @@ class Parser:
                     self.update_job(status='done', error=err_msg)
                     return
 
-            self.update_job(status='done')
+        self.update_job(status='done')
+
+    @staticmethod
+    def _attr(_object, attr='text'):
+        return hasattr(_object, attr)
 
     def parse_product(self, url=None, source=None):
         if not (url or source):
             err_msg = f'No url or source provided for parsing: {url}'
             _err(err_msg)
-            self.update_job(status='done', error=err_msg)
             return {'error': err_msg}
 
         if url and not source:
@@ -372,14 +388,12 @@ class Parser:
                 err_msg = f'Error occurred when getting source for url: {url}.' \
                           f'Error: {error}'
                 _err(err_msg)
-                self.update_job(status='done', error=err_msg)
                 return {'error': err_msg}
 
             source = get_source_result.get('source')
             if not source:
                 err_msg = f'No content (empty content) received for url: {url}'
                 _err(err_msg)
-                self.update_job(status='done', error=err_msg)
                 return {'error': err_msg}
             # content_save_filename = f'product_parsing_job_{self._job.id}_.html'
             # self._save_content(source, content_save_filename)
@@ -387,7 +401,6 @@ class Parser:
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
             _err(error)
-            self.update_job(status='done', error=error)
             return {'error': error}
         soup = soup_result.get('soup')
         self._remove_bad_elements(soup)
@@ -406,20 +419,22 @@ class Parser:
 
             # categories
             categories = soup.find_all("span", class_="b_2_ymxwgqvC")
-            category = '/'.join(self._values(categories)[1:])
-            data['category'] = category
+            if categories:
+                category = '/'.join(self._values(categories)[1:])
+                data['category'] = category
 
             # stats
-            # stats = soup.find_all("span", class_="text b_3l-uEDOaBN b_1keKGH6ida b_3HJsMt3YC_ b_QDV8hKAp1G")
             stats = soup.find_all("span", class_="text")
-            stats = self._values(stats)
-            data['purchase_count'] = self._puchase_count(stats)
-            data['recommend_rate'] = self._recommend_rate(stats)
-            data['view_count'] = self._view_count(stats)
+            if stats:
+                stats = self._values(stats)
+                data['purchase_count'] = self._puchase_count(stats)
+                data['recommend_rate'] = self._recommend_rate(stats)
+                data['view_count'] = self._view_count(stats)
 
             # reviews
             reviews = soup.find("span", class_="b_2MBnkkD0XY")
-            data['review_count'] = self._review_count(reviews.text)
+            if reviews:
+                data['review_count'] = self._review_count(reviews.text)
 
             # storage
             storage = soup.find("div", {'data-zone-name': 'warehouse'})
@@ -438,10 +453,11 @@ class Parser:
 
             # delivery dates
             deliveries = soup.find_all("div", class_="b_37t9OXssoz")
-            deliveries = self._values(deliveries)
             if deliveries:
-                data['pickup_days'] = self._days(self._delivery_date(deliveries, 'самовывоз'))
-                data['delivery_days'] = self._days(self._delivery_date(deliveries, 'курьер'))
+                deliveries = self._values(deliveries)
+                if deliveries:
+                    data['pickup_days'] = self._days(self._delivery_date(deliveries, 'самовывоз'))
+                    data['delivery_days'] = self._days(self._delivery_date(deliveries, 'курьер'))
 
             # images
             main_image = soup.find("div", class_="b_2ke8Y2fll7")
@@ -792,6 +808,7 @@ class Parser:
                 while True:
                     proxy = choice(self._proxies)
                     if proxy != last_used_proxy:
+                        # noinspection PyUnusedLocal
                         last_used_proxy = proxy
                         break
             else:
@@ -838,13 +855,16 @@ class Parser:
                     solved_captcha_id = solve_result.get('captcha_id')
                     if not self._is_captcha(source):
                         # captcha solved successfully
+                        self._stats['captcha']['good'] += 1
                         self._solver.report(solved_captcha_id)
                         _log(f'Received source for url: {url}')
                         return {'source': source}
 
                     # continue to another captcha attempt
+
                     err_msg = f'Incorrect captcha case: {solve_result}'
                     _err(err_msg)
+                    self._stats['captcha']['bad'] += 1
                     self._solver.report(solved_captcha_id, False)
                     continue
 
