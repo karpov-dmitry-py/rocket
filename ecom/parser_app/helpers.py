@@ -26,7 +26,6 @@ def _now():
 
 
 def _timezone():
-    # TODO - use django general settings
     return pytz.timezone(zone='Europe/Moscow')
 
 

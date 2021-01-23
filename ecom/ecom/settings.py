@@ -11,8 +11,18 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 import os.path
-
+import json
 from pathlib import Path
+
+_APP_MODE = 'dev'
+# _APP_MODE = 'prod'
+
+# custom settings
+curr_dir = os.path.dirname(__file__)
+settings_file_path = os.path.join(curr_dir, 'settings/_settings.json')
+with open(settings_file_path) as file:
+    _settings = json.load(file)
+_mode_settings = _settings.get(_APP_MODE, dict())
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +31,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'em75j0dje2y&t_(qjmv-w51%mc(xyykrt^)rwj&6^k0vlftd#+'
+SECRET_KEY = _settings.get('secret_key') or 'test-secret_key-to-be-replaced-with-actual-one'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _mode_settings.get('debug', True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _mode_settings.get('allowed_hosts', [])
 
 # Application definition
 
@@ -74,7 +84,7 @@ WSGI_APPLICATION = 'ecom.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
-DATABASES = {
+DATABASES = _mode_settings.get('dbs') or {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
@@ -102,7 +112,6 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/
 
-# LANGUAGE_CODE = 'en-us'
 LANGUAGE_CODE = 'ru-ru'
 
 TIME_ZONE = 'Europe/Moscow'

@@ -85,12 +85,20 @@ class Parser:
 
         self.update_job()
         if _type == 'product':
-            self.parse_product(url=self._url)
+            try:
+                self.parse_product(url=self._url)
+                self.update_job(status='done')
+            except (AttributeError, Exception) as err:
+                err_msg = f'Parse product error: {self._exc(err)}'
+                _err(err_msg)
+                self.update_job(status='done', error=err_msg)
+                return
+
         elif _type == 'category':
             try:
                 self.parse_category(url=self._url)
             except (AttributeError, Exception) as err:
-                err_msg = f'Error in parse_category method. Error: {self._exc(err)}'
+                err_msg = f'Parse category error: {self._exc(err)}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
                 return
@@ -297,8 +305,7 @@ class Parser:
                 return
             source = get_source_result.get('source')
             filename = f'category_parsing_job_{job_id}_content.html'
-            # TODO - remove saving after tests
-            self._save_content(source, filename)
+            # self._save_content(source, filename)
 
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
@@ -379,6 +386,7 @@ class Parser:
         if not (url or source):
             err_msg = f'No url or source provided for parsing: {url}'
             _err(err_msg)
+            self.update_job(status='done', error=err_msg)
             return {'error': err_msg}
 
         if url and not source:
@@ -388,19 +396,20 @@ class Parser:
                 err_msg = f'Error occurred when getting source for url: {url}.' \
                           f'Error: {error}'
                 _err(err_msg)
+                self.update_job(status='done', error=err_msg)
                 return {'error': err_msg}
 
             source = get_source_result.get('source')
             if not source:
                 err_msg = f'No content (empty content) received for url: {url}'
                 _err(err_msg)
+                self.update_job(status='done', error=err_msg)
                 return {'error': err_msg}
-            # content_save_filename = f'product_parsing_job_{self._job.id}_.html'
-            # self._save_content(source, content_save_filename)
 
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
             _err(error)
+            self.update_job(status='done', error=error)
             return {'error': error}
         soup = soup_result.get('soup')
         self._remove_bad_elements(soup)
@@ -476,8 +485,9 @@ class Parser:
                     more_images_count = int(''.join(char for char in more_images_label.text if char.isdigit()))
                     images_count += more_images_count
                 except (IndexError, Exception) as err:
-                    err_msg = f'Failed to parse more images label. Error: {self._exc(err)}'
+                    err_msg = f'Failed to parse exact number from "more images" label. Error: {self._exc(err)}'
                     _err(err_msg)
+                    self.update_job(status='done', error=err_msg)
                     return {'error': err_msg}
             data['image_count'] = images_count or 1
 
@@ -512,6 +522,7 @@ class Parser:
                     except (IndexError, Exception) as err:
                         err_msg = f'Failed to parse a competitor price. Error: {self._exc(err)}'
                         _err(err_msg)
+                        self.update_job(status='done', error=err_msg)
                         return {'error': err_msg}
             data['seller_count'] = seller_count
 

@@ -1,4 +1,5 @@
 import time
+import os
 import os.path
 # import requests
 # noinspection PyUnresolvedReferences,PyPackageRequirements
@@ -44,6 +45,15 @@ class Solver:
     def _is_timeout(start_time):
         return time.time() > start_time + DEFAULT_TIMEOUT
 
+    def _delete_tmp_image(self):
+        if image_path := self.result.get('image_path'):
+            try:
+                os.remove(image_path)
+            except (FileExistsError, OSError, Exception) as err:
+                err_msg = f'Failed to delete captcha tmp image: {image_path}. Error: {self._exc(err)}'
+                _err(err_msg)
+
+
     def solve(self, image_path, job_id):
         self.result = {
             'image_path': image_path,
@@ -64,6 +74,7 @@ class Solver:
             try:
                 result = self.api.normal(image_path, caseSensitive=1)
             except (SolverExceptions, ValidationException, ApiException, Exception) as err:
+                self._delete_tmp_image()
                 err_msg = f'Captcha API related exception occurred: {self._exc(err)}'
                 _err(err_msg)
                 self._error(err_msg)
@@ -81,7 +92,7 @@ class Solver:
                 time.sleep(SLEEP_PAUSE)
                 continue
 
-            # TODO - delete image for this job
+            self._delete_tmp_image()
             captcha_id = result.get('captchaId')
             code = result.get('code')
             self.result['captcha_id'] = captcha_id
@@ -90,7 +101,7 @@ class Solver:
             _log(msg)
             return self.result
 
-        # TODO - delete image for this job
+        self._delete_tmp_image()
         err_msg = f'Captcha time out: failed to get code from captcha API during {DEFAULT_TIMEOUT} secs.'
         _err(err_msg)
         self._error(err_msg)

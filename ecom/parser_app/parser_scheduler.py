@@ -18,7 +18,7 @@ def process_product_parsing():
     jobs = ProductParsing.objects.filter(status=initial_status)
     if not jobs:
         _log('Found no product parsing jobs to be processed.')
-        return
+
 
     # noinspection PyUnresolvedReferences
     jobs = ProductParsing.objects.filter(status=initial_status)
@@ -46,7 +46,8 @@ def process_category_parsing():
     jobs = CategoryParsing.objects.filter(status=initial_status)
     if not jobs:
         _log('Found no category parsing jobs to be processed.')
-        return
+        process_product_parsing()
+
 
     # noinspection PyUnresolvedReferences
     jobs = CategoryParsing.objects.filter(status=initial_status)
@@ -70,6 +71,6 @@ def process_category_parsing():
 def start_parsing():
     scheduler = BackgroundScheduler()
     # scheduler.add_job(process_product_parsing, 'interval', seconds=20, max_instances=10)
-    scheduler.add_job(process_category_parsing, 'interval', seconds=10, max_instances=10)
+    scheduler.add_job(process_category_parsing, 'interval', seconds=10, max_instances=100)
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown())
