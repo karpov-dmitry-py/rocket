@@ -1,0 +1,19 @@
+[Unit]
+Description=Rocket web app
+Requires=docker.service
+After=docker.service
+
+[Service]
+;User=dkarpov
+;Group=dkarpov
+Type=simple
+RemainAfterExit=true
+ExecStart=/home/dkarpov/projects/self/rocket/service_up.sh
+ExecStop=/home/dkarpov/projects/self/rocket/service_down.sh
+
+#ExecStart=/home/dockeruser/viruslib_client/service_up.sh
+#ExecStop=/home/dockeruser/Viruslib/viruslib_app/service_down.sh
+
+
+[Install]
+WantedBy=multi-user.target
