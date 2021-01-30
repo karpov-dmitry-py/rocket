@@ -1,3 +1,5 @@
+# _*_ coding:utf-8 _*_
+
 import math
 import time
 import uuid
@@ -18,8 +20,11 @@ from selenium.webdriver.common.keys import Keys
 # from selenium.webdriver.common.by import By
 # noinspection PyPackageRequirements
 from seleniumwire import webdriver
+
+# from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
+from django.utils.encoding import force_text
 
 from .proxy import ProxyManager
 from .captcha import Solver as CaptchaSolver
@@ -101,7 +106,6 @@ class Parser:
                 err_msg = f'Parse category error: {self._exc(err)}'
                 _err(err_msg)
                 self.update_job(status='done', error=err_msg)
-                return
 
     def _set_session(self):
         self._session = requests.Session()
@@ -204,8 +208,10 @@ class Parser:
 
     @staticmethod
     def _save_content(content, filename):
+        base_dir = os.path.dirname(__file__)
+        _log(f'Base dir: {base_dir}')
         save_dir = 'saved_content'
-        path = os.path.join(os.path.dirname(__file__), save_dir, filename)
+        path = os.path.join(base_dir, save_dir, filename)
         with open(path, 'w') as f:
             f.write(content)
         _log(f'Saved content to file: {path}')
@@ -220,11 +226,28 @@ class Parser:
     @staticmethod
     def _create_webdriver(proxy):
         options = Options()
-        options.headless = True
+        options.add_argument("--headless")
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        # options.headless = True
         wire_options = {
             'proxy': proxy
         }
-        driver = webdriver.Firefox(options=options, seleniumwire_options=wire_options)
+
+        driver = webdriver.Firefox(
+            # driver = webdriver.Chrome(
+            executable_path='/usr/local/bin/geckodriver',
+            # executable_path='/usr/bin/chromedriver',
+
+            firefox_binary='/usr/bin/firefox',
+            firefox_options=options,
+            # chrome_options=options,
+
+            seleniumwire_options=wire_options,
+
+            service_log_path='/tmp/geckodriver.log',
+            # service_log_path='/tmp/chromedriver.log',
+        )
 
         return driver
 
@@ -305,7 +328,7 @@ class Parser:
                 return
             source = get_source_result.get('source')
             filename = f'category_parsing_job_{job_id}_content.html'
-            # self._save_content(source, filename)
+            self._save_content(source, filename)
 
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
@@ -317,7 +340,7 @@ class Parser:
         # parsing
         listing_stats = soup.find("div", class_="b_2StYqKhlBr b_1wAXjGKtqe")
         if not listing_stats:
-            err_msg = 'No product listing stats div parsed from category first page'
+            err_msg = 'Failed to parse product pagination info from category first page'
             _err(err_msg)
             self.update_job(status='done', error=error)
             return
@@ -786,6 +809,11 @@ class Parser:
                     time.sleep(2)
 
     def _get_captcha_input_elements(self, driver):
+        filename = 'live_captcha.html'
+        with open(filename, 'w') as file:
+            file.write(self._source(driver))
+            _log(f'Saved captcha source to: {filename}')
+
         result = {
             'input': None,
             'submit': None,
@@ -804,6 +832,18 @@ class Parser:
             result['error'] = err_msg
 
         return result
+
+    def _source(self, driver):
+        try:
+            source = force_text(driver.page_source)
+            # source = driver.page_source
+        except ValueError as err:
+            err_msg = f'Failed to get driver.page_source. Error: {self._exc(err)}'
+            _err(err_msg)
+            raise Exception(err_msg)
+
+        _log(f'Source type: {type(source)}')
+        return source
 
     def _get_source(self, url, _type='product', time_to_wait=10, scroll_page=True):
         proxies_count = len(self._proxies)
@@ -828,7 +868,7 @@ class Parser:
             driver = self._create_webdriver(proxy=proxy)
             try:
                 self._helping_actions(driver, url, time_to_wait, scroll_page)
-                source = driver.page_source
+                source = self._source(driver)
                 if not self._is_captcha(source):
                     _log(f'Received source for url: {url}')
                     return {'source': source}
@@ -861,7 +901,7 @@ class Parser:
                     time.sleep(captcha_submit_pause)
 
                     self._helping_actions(driver, url, time_to_wait, scroll_page)
-                    source = driver.page_source
+                    source = self._source(driver)
 
                     solved_captcha_id = solve_result.get('captcha_id')
                     if not self._is_captcha(source):

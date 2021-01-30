@@ -18,7 +18,9 @@ services:
       - mysql
     network_mode: "host"
     volumes:
-      - /usr/bin/firefox:/usr/bin/firefox
-      - /usr/bin/geckodriver:/usr/bin/geckodriver
+#      - /usr/bin/firefox:/usr/bin/firefox
+#      - /usr/lib/firefox:/usr/lib/firefox
+#      - /usr/bin/geckodriver:/usr/bin/geckodriver
+      - /tmp:/tmp
     ports:
       - "0.0.0.0:8000:8000"

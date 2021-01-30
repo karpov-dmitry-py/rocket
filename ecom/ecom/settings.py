@@ -14,8 +14,8 @@ import os.path
 import json
 from pathlib import Path
 
-_APP_MODE = 'dev'
-# _APP_MODE = 'prod'
+# _APP_MODE = 'dev'
+_APP_MODE = 'prod'
 
 # custom _settings
 curr_dir = os.path.dirname(__file__)

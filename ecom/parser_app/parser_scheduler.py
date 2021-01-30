@@ -2,7 +2,9 @@ import atexit
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from .helpers import _log, _err
+from .helpers import _log
+# noinspection PyUnresolvedReferences
+from .helpers import _err
 from .models import ProductParsing
 from .models import CategoryParsing
 from .models import ModelHelper
@@ -18,7 +20,6 @@ def process_product_parsing():
     jobs = ProductParsing.objects.filter(status=initial_status)
     if not jobs:
         _log('Found no product parsing jobs to be processed.')
-
 
     # noinspection PyUnresolvedReferences
     jobs = ProductParsing.objects.filter(status=initial_status)
@@ -46,9 +47,10 @@ def process_category_parsing():
     jobs = CategoryParsing.objects.filter(status=initial_status)
     if not jobs:
         _log('Found no category parsing jobs to be processed.')
-        process_product_parsing()
+        # process_product_parsing()
+        return
 
-
+        # noinspection PyUnresolvedReferences
     # noinspection PyUnresolvedReferences
     jobs = CategoryParsing.objects.filter(status=initial_status)
     for job in jobs:
