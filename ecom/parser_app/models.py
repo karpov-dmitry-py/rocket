@@ -104,7 +104,7 @@ class ProductParsing(Model):
     error = TextField(max_length=5000, blank=True, null=True)
     start_date = DateTimeField(default=timezone.now)
     end_date = DateTimeField(blank=True, null=True)
-    duration = IntegerField(blank=True, null=True)
+    duration = TextField(max_length=100, blank=True, null=True)
 
     def __str__(self):
         return f'{self.product}: {self.start_date}: {self.status}'
@@ -120,7 +120,7 @@ class CategoryParsing(Model):
     error = TextField(max_length=5000, blank=True, null=True)
     start_date = DateTimeField(default=timezone.now)
     end_date = DateTimeField(blank=True, null=True)
-    duration = IntegerField(blank=True, null=True)
+    duration = TextField(max_length=100, blank=True, null=True)
 
     def __str__(self):
         return f'{self.category}: {self.start_date}: {self.status}'

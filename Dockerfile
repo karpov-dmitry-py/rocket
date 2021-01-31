@@ -73,6 +73,9 @@ COPY ecom /home/$usr/workdir
 USER root
 RUN chmod -R 777 /home/$usr/workdir
 
+
+ENV PYTHONIOENCODING utf-8
+ENV LANG C.UTF-8
 USER $usr
 RUN pip3 install --user -r /home/$usr/workdir/requirements.txt
 ENTRYPOINT /home/dockeruser/.local/bin/uwsgi /home/$usr/workdir/uwsgi.ini

@@ -17,6 +17,8 @@ def test():
                     'PORT': '3306',
                     'OPTIONS': {
                         'autocommit': True,
+                        'charset': 'utf8mb4'
+
                     },
                 }
             }
@@ -24,6 +26,7 @@ def test():
     }
     with open('_settings.json', 'w') as file:
         json.dump(data, file, indent=4)
+
 
 if __name__ == '__main__':
     test()

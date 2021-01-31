@@ -1,5 +1,5 @@
-# _*_ coding:utf-8 _*_
-
+# _*_ coding: utf-8 _*_
+import codecs
 import math
 import time
 import uuid
@@ -15,16 +15,18 @@ import os
 import os.path
 from random import choice
 from selenium.webdriver.common.keys import Keys
+
 # from selenium.webdriver.support.wait import WebDriverWait
 # from selenium.webdriver.support import expected_conditions as EC
 # from selenium.webdriver.common.by import By
+
 # noinspection PyPackageRequirements
 from seleniumwire import webdriver
 
 # from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
-from django.utils.encoding import force_text
+# from django.utils.encoding import force_str
 
 from .proxy import ProxyManager
 from .captcha import Solver as CaptchaSolver
@@ -198,7 +200,9 @@ class Parser:
         if status in need_stats_statuses:
             now = _now()
             delta = now - job.start_date
-            job.duration = round(delta.total_seconds(), 2)
+            total_seconds = round(delta.total_seconds())
+            duration_as_str = str(timedelta(seconds=total_seconds))
+            job.duration = duration_as_str
             if status == 'done':
                 job.end_date = now
             if state := self._current_state():
@@ -229,26 +233,21 @@ class Parser:
         options.add_argument("--headless")
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        # options.headless = True
         wire_options = {
             'proxy': proxy
         }
-
         driver = webdriver.Firefox(
             # driver = webdriver.Chrome(
-            executable_path='/usr/local/bin/geckodriver',
+            # executable_path='/usr/local/bin/geckodriver',
             # executable_path='/usr/bin/chromedriver',
 
             firefox_binary='/usr/bin/firefox',
             firefox_options=options,
             # chrome_options=options,
-
             seleniumwire_options=wire_options,
-
             service_log_path='/tmp/geckodriver.log',
             # service_log_path='/tmp/chromedriver.log',
         )
-
         return driver
 
     @staticmethod
@@ -327,8 +326,8 @@ class Parser:
                 self.update_job(status='done', error=err_msg)
                 return
             source = get_source_result.get('source')
-            filename = f'category_parsing_job_{job_id}_content.html'
-            self._save_content(source, filename)
+            # filename = f'category_parsing_job_{job_id}_content.html'
+            # self._save_content(source, filename)
 
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
@@ -835,10 +834,18 @@ class Parser:
 
     def _source(self, driver):
         try:
-            source = force_text(driver.page_source)
-            # source = driver.page_source
-        except ValueError as err:
-            err_msg = f'Failed to get driver.page_source. Error: {self._exc(err)}'
+            source = driver.page_source
+            # _bytes = source.encode()
+            # _log(f'Encoded original source to bytes.')
+            #
+            # filename = 'saved_source.html'
+            # _log(f'Writing str source content to: {filename}')
+            # with codecs.open(filename, 'wb') as file:
+            #     file.write(_bytes)
+            # _log(f'Wrote _bytes to: {filename}')
+
+        except (UnicodeEncodeError, UnicodeDecodeError, Exception) as err:
+            err_msg = f'Failed to retrieve driver.page_source. Error: {self._exc(err)}'
             _err(err_msg)
             raise Exception(err_msg)
 

@@ -1,4 +1,5 @@
 import atexit
+import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -41,8 +42,10 @@ def process_product_parsing():
 
 
 def process_category_parsing():
+    os.environ["PYTHONIOENCODING"] = 'UTF-8'
     initial_status = 'created'
     next_status = 'scheduled'
+
     # noinspection PyUnresolvedReferences
     jobs = CategoryParsing.objects.filter(status=initial_status)
     if not jobs:
