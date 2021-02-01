@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 # noinspection PyPackageRequirements
 import pytz
 from datetime import datetime
@@ -31,3 +32,7 @@ def _timezone():
 
 def _make_aware_time(_datetime):
     return _datetime.replace(tzinfo=_timezone())
+
+
+def _set_env_py_encoding():
+    os.environ["PYTHONIOENCODING"] = 'UTF-8'

@@ -41,6 +41,7 @@ from .views import CategoryParsingDetailView
 from .views import CategoryParsingUpdateView
 from .views import CategoryParsingDeleteView
 from .views import category_parsing
+from .views import get_result_file
 
 urlpatterns = [
 
@@ -96,4 +97,5 @@ urlpatterns = [
          name='parser-parsing-category-update'),
     path('parsing-category/<int:pk>/delete/', CategoryParsingDeleteView.as_view(),
          name='parser-parsing-category-delete'),
+    path('parsing-category/<int:_id>/result/', get_result_file, name='parser-parsing-category-result'),
 ]

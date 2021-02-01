@@ -12,7 +12,7 @@
             <h5 class="card-text"><b>Status:</b> {{ item.status }}</h5>
             <h5 class="card-text"><b>Result file: </b>
                 {% if item.result_file %}
-                    <a target="_blank" href="{% static 'parser_app/category/' %}{{ item.result_file }}">{{ item.result_file }}</a>
+                    <a href="{% url 'parser-parsing-category-result' item.id %}">{{ item.result_file }}</a>
                 {% endif %}
             </h5>
             <h5 class="card-text"><b>Comment:</b> {{ item.comment }}</h5>

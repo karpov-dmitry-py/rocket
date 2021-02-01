@@ -6,12 +6,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from .helpers import _log
 # noinspection PyUnresolvedReferences
 from .helpers import _err
+from .helpers import _set_env_py_encoding
 from .models import ProductParsing
 from .models import CategoryParsing
 from .models import ModelHelper
 
 # from .parser import Parser
 from .parser import Parser
+
+_set_env_py_encoding()
 
 
 def process_product_parsing():
@@ -42,7 +45,6 @@ def process_product_parsing():
 
 
 def process_category_parsing():
-    os.environ["PYTHONIOENCODING"] = 'UTF-8'
     initial_status = 'created'
     next_status = 'scheduled'
 

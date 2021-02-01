@@ -1,3 +1,7 @@
+import os.path
+from builtins import Exception
+
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.shortcuts import redirect
 from django.contrib import messages
@@ -21,6 +25,8 @@ from .forms import ProductParsingCreateForm
 from .forms import CategoryParsingCreateForm
 from .models import ModelHelper
 from .parser_scheduler import start_parsing
+from .helpers import _log
+from .helpers import _err
 
 
 # marketplace
@@ -289,6 +295,44 @@ def category_parsing(request, pk=None):
 
     context = {'form': form}
     return render(request, 'parser_app/categoryparsing_form.html', context)
+
+
+def get_result_file(request, _id, _type='category'):
+    error_redirect_view = 'parser-parsing-category-list'
+    storage_dir = f'results/{_type}'
+    _classes = {
+        'category': CategoryParsing,
+        'product': ProductParsing
+    }
+
+    _class = _classes.get(_type)
+    if not _class:
+        raise ValueError(f'Wrong type ({_type}) passed in to "get_result_file" view!')
+
+    try:
+        # noinspection PyUnresolvedReferences
+        row = _class.objects.get(pk=_id)
+    except (ValueError, Exception):
+        messages.error(request, f'{_type} with id {_id} not found in db!')
+        return redirect(error_redirect_view)
+
+    base_dir = os.path.dirname(__file__)
+    filename = row.result_file
+    full_path = os.path.join(base_dir, storage_dir, filename)
+    try:
+        with open(full_path, 'r', encoding='utf8') as file:
+            raw = file.read()
+        _log(f'Successfully read file from fs ({filename}) and returning it...')
+        response = HttpResponse(raw, content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    except (FileExistsError, OSError, Exception) as err:
+        err_msg = f'Failed to download result file: {filename}. ' \
+                  f'Error: {str(err)}'
+        _err(err_msg)
+        messages.error(request, err_msg)
+        return redirect(error_redirect_view)
+
 
 # start scheduler to monitor db for new parsing jobs
 start_parsing()

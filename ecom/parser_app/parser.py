@@ -1,5 +1,4 @@
 # _*_ coding: utf-8 _*_
-import codecs
 import math
 import time
 import uuid
@@ -34,6 +33,9 @@ from .helpers import _log
 from .helpers import _err
 from .helpers import _now
 from .helpers import _now_as_str
+from .helpers import _set_env_py_encoding
+
+_set_env_py_encoding()
 
 
 class Parser:
@@ -745,7 +747,7 @@ class Parser:
         job_id = self._job.id
         if not self._result_file_path:
             base_dir = os.path.dirname(__file__)
-            result_dir = f'static/parser_app/{self._type}'
+            result_dir = f'results/{self._type}'
             _id = str(uuid.uuid4())
             filename = f'{self._type}_parsing_job_{job_id}_{_id}.csv'
             full_path = os.path.join(base_dir, result_dir, filename)
