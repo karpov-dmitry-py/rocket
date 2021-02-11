@@ -19,6 +19,25 @@ RUN apt install libgtk-3-0 -y
 RUN apt install libdbus-glib-1-2
 RUN apt install dpkg -y
 
+RUN apt install -y locales locales-all
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=en_US.UTF-8
+
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+ENV LANGUAGE en_US.UTF-8
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING utf-8
+
+# install phantomjs
+# RUN wget https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 && \
+#     tar -jxf phantomjs-2.1.1-linux-x86_64.tar.bz2 && \
+#     cp phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/local/bin/phantomjs && \
+#     rm phantomjs-2.1.1-linux-x86_64.tar.bz2
+
+
+
 # install geckodriver and firefox
 RUN GECKODRIVER_VERSION=`curl https://github.com/mozilla/geckodriver/releases/latest | grep -Po 'v[0-9]+.[0-9]+.[0-9]+'` && \
     wget https://github.com/mozilla/geckodriver/releases/download/$GECKODRIVER_VERSION/geckodriver-$GECKODRIVER_VERSION-linux64.tar.gz && \
@@ -70,12 +89,12 @@ USER $usr
 RUN mkdir -p /home/$usr/workdir
 COPY ecom /home/$usr/workdir
 
+RUN mkdir -p /home/$usr/parsing_results/category
+
 USER root
 RUN chmod -R 777 /home/$usr/workdir
+RUN chmod -R 777 /home/$usr/parsing_results/category
 
-
-ENV PYTHONIOENCODING utf-8
-ENV LANG C.UTF-8
 USER $usr
 RUN pip3 install --user -r /home/$usr/workdir/requirements.txt
 ENTRYPOINT /home/dockeruser/.local/bin/uwsgi /home/$usr/workdir/uwsgi.ini

@@ -27,6 +27,7 @@ from .models import ModelHelper
 from .parser_scheduler import start_parsing
 from .helpers import _log
 from .helpers import _err
+# from .tests import test
 
 
 # marketplace
@@ -299,7 +300,7 @@ def category_parsing(request, pk=None):
 
 def get_result_file(request, _id, _type='category'):
     error_redirect_view = 'parser-parsing-category-list'
-    storage_dir = f'results/{_type}'
+    storage_dir = os.path.join('/home/dockeruser/parsing_results', _type)
     _classes = {
         'category': CategoryParsing,
         'product': ProductParsing
@@ -316,9 +317,8 @@ def get_result_file(request, _id, _type='category'):
         messages.error(request, f'{_type} with id {_id} not found in db!')
         return redirect(error_redirect_view)
 
-    base_dir = os.path.dirname(__file__)
     filename = row.result_file
-    full_path = os.path.join(base_dir, storage_dir, filename)
+    full_path = os.path.join(storage_dir, filename)
     try:
         with open(full_path, 'r', encoding='utf8') as file:
             raw = file.read()
@@ -336,3 +336,4 @@ def get_result_file(request, _id, _type='category'):
 
 # start scheduler to monitor db for new parsing jobs
 start_parsing()
+# test.testme()

@@ -7,10 +7,12 @@ services:
       - MYSQL_ROOT_PASSWORD=mysql_root_pswd
     network_mode: "host"
     volumes:
-#     - /home/dockeruser/vl_client_db:/var/lib/mysql TODO actual path to dir
+
       - /home/dkarpov/projects/self/rocket/db:/var/lib/mysql
-    ports:
-      - "3306:3306"
+      - /home/dkarpov/projects/self/rocket/parsing_results/category:/home/dockeruser/parsing_results/category
+      # - /home/dockeruser/vl_client_db:/var/lib/mysql TODO actual path to dir
+#    ports:
+#      - "3306:3306"
   app:
     container_name: app_container
     image: rocket_app

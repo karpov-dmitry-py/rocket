@@ -12,7 +12,7 @@ import requests
 import csv
 import os
 import os.path
-from random import choice
+# from random import choice
 from selenium.webdriver.common.keys import Keys
 
 # from selenium.webdriver.support.wait import WebDriverWait
@@ -82,6 +82,7 @@ class Parser:
         self._stats = {
             'current': 0,
             'total': 0,
+            'blocked_proxies': set(),
             'captcha': {
                 'submitted': 0,
                 'good': 0,
@@ -89,6 +90,7 @@ class Parser:
             }
         }
         self._type = _type
+        self._save_dir = os.path.join('/home/dockeruser/parsing_results', _type)
         self._result_file_path = None
         self._result_file_name = None
 
@@ -118,13 +120,22 @@ class Parser:
         current = self._stats.get('current')
         total = self._stats.get('total')
 
+        blocked_proxies_set = self._stats['blocked_proxies']
+        blocked_proxies = ', '.join(blocked_proxies_set)
+        if blocked_proxies:
+            blocked_proxies = f'Blocked proxies ({len(blocked_proxies_set)}): {blocked_proxies}'
+
         if not (current and total):
-            return ''
+            if not blocked_proxies:
+                return ''
+            else:
+                return blocked_proxies
 
         percent = round(current / total, 2) * 100
         _cap = self._stats['captcha']
+
         result = f'Done {current} of {total} products: {percent}%. Captcha: submitted: {_cap["submitted"]}, ' \
-                 f'good: {_cap["good"]}, bad: {_cap["bad"]}'
+                 f'good: {_cap["good"]}, bad: {_cap["bad"]}. {blocked_proxies}'
 
         return result
 
@@ -231,6 +242,21 @@ class Parser:
 
     @staticmethod
     def _create_webdriver(proxy):
+
+        # PHANTOMJS
+        # service_args = [
+        #     "--ignore-ssl-errors=true",
+        #     "--ssl-protocol=any",
+        #     "--proxy={}".format(proxy),
+        #     "--proxy-type=http",
+        # ]
+        # caps = webdriver.DesiredCapabilities.PHANTOMJS
+        # driver = webdriver.PhantomJS(
+        #     service_args=service_args,
+        #     desired_capabilities=caps,
+        #     executable_path='/usr/local/bin/phantomjs',
+        #     service_log_path='/tmp/phantomjs.log')
+
         options = Options()
         options.add_argument("--headless")
         options.add_argument('--no-sandbox')
@@ -238,18 +264,21 @@ class Parser:
         wire_options = {
             'proxy': proxy
         }
-        driver = webdriver.Firefox(
-            # driver = webdriver.Chrome(
-            # executable_path='/usr/local/bin/geckodriver',
-            # executable_path='/usr/bin/chromedriver',
 
+        driver = webdriver.Firefox(
+            executable_path='/usr/local/bin/geckodriver',
             firefox_binary='/usr/bin/firefox',
             firefox_options=options,
-            # chrome_options=options,
             seleniumwire_options=wire_options,
             service_log_path='/tmp/geckodriver.log',
-            # service_log_path='/tmp/chromedriver.log',
         )
+
+        # driver = webdriver.Chrome(
+        # executable_path='/usr/bin/chromedriver',
+        # chrome_options=options,
+        # service_log_path='/tmp/chromedriver.log',
+        # seleniumwire_options = wire_options)
+
         return driver
 
     @staticmethod
@@ -328,8 +357,8 @@ class Parser:
                 self.update_job(status='done', error=err_msg)
                 return
             source = get_source_result.get('source')
-            # filename = f'category_parsing_job_{job_id}_content.html'
-            # self._save_content(source, filename)
+            filename = f'category_parsing_job_{job_id}_content.html'
+            self._save_content(source, filename)
 
         soup_result = self._soup(source, url)
         if error := soup_result.get('error'):
@@ -343,7 +372,7 @@ class Parser:
         if not listing_stats:
             err_msg = 'Failed to parse product pagination info from category first page'
             _err(err_msg)
-            self.update_job(status='done', error=error)
+            self.update_job(status='done', error=err_msg)
             return
 
         listing_str = listing_stats.text
@@ -351,8 +380,13 @@ class Parser:
         for word in listing_str.split():
             if word.isdigit():
                 stats.append(word)
-        if len(stats) < 2:
-            raise ValueError(f'Parsed not enough {len(stats)} products count stats from category first page: {stats}')
+        stats_count = len(stats)
+        if stats_count < 2:
+            err_msg = f'Parsed not enough products pagination stats ({stats_count}) from category first page: {stats}'
+            _err(err_msg)
+            self.update_job(status='done', error=err_msg)
+            return
+
         products_per_page, products_total = int(stats[0]), int(stats[1])
         self._stats['total'] = products_total
         products_processed = 0
@@ -544,10 +578,10 @@ class Parser:
                         price = ''.join(char for char in _str if char.isdigit())
                         prices.append(int(price))
                     except (IndexError, Exception) as err:
-                        err_msg = f'Failed to parse a competitor price. Error: {self._exc(err)}'
+                        err_msg = f'Failed to parse a competitor price and skipped this error. Error: {self._exc(err)}'
                         _err(err_msg)
-                        self.update_job(status='done', error=err_msg)
-                        return {'error': err_msg}
+                        # self.update_job(status='done', error=err_msg)
+                        # return {'error': err_msg}
             data['seller_count'] = seller_count
 
             # min_price
@@ -746,17 +780,20 @@ class Parser:
         data['region'] = self._region
         job_id = self._job.id
         if not self._result_file_path:
-            base_dir = os.path.dirname(__file__)
-            result_dir = f'results/{self._type}'
             _id = str(uuid.uuid4())
             filename = f'{self._type}_parsing_job_{job_id}_{_id}.csv'
-            full_path = os.path.join(base_dir, result_dir, filename)
+
+            if not os.path.isdir(self._save_dir):
+                os.makedirs(self._save_dir, exist_ok=True)
+            full_path = os.path.join(self._save_dir, filename)
+
             self._result_file_path = full_path
             self._result_file_name = filename
         try:
             with open(self._result_file_path, 'a', encoding='utf8', newline='') as csv_file:
                 fieldnames = [key for key in data.keys()]
-                writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames, dialect=csv.excel)
+                writer = csv.DictWriter(f=csv_file, delimiter=',', fieldnames=fieldnames,
+                                        dialect=csv.excel)
 
                 # file does not exist yet
                 if not os.stat(self._result_file_path).st_size:
@@ -775,6 +812,13 @@ class Parser:
             err_msg = f'Failed to create/update file: {self._result_file_path}. Error: {self._exc(err)}'
             _err(err_msg)
             self.update_job(status='done', error=err_msg)
+
+    @staticmethod
+    def _is_403(source):
+        if not source:
+            return False
+        pattern = '<title>403</title>'
+        return pattern in source.lower()
 
     @staticmethod
     def _is_captcha(source):
@@ -837,47 +881,72 @@ class Parser:
     def _source(self, driver):
         try:
             source = driver.page_source
-            # _bytes = source.encode()
-            # _log(f'Encoded original source to bytes.')
-            #
-            # filename = 'saved_source.html'
-            # _log(f'Writing str source content to: {filename}')
-            # with codecs.open(filename, 'wb') as file:
-            #     file.write(_bytes)
-            # _log(f'Wrote _bytes to: {filename}')
+            _bytes = source.encode(encoding='utf8', errors='ignore')
+            _log(f'Converted source to bytes.')
+
+            source = _bytes.decode(encoding='utf8', errors='ignore')
+            _log(f'Converted source from bytes back to str.')
 
         except (UnicodeEncodeError, UnicodeDecodeError, Exception) as err:
             err_msg = f'Failed to retrieve driver.page_source. Error: {self._exc(err)}'
             _err(err_msg)
             raise Exception(err_msg)
 
-        _log(f'Source type: {type(source)}')
-        return source
+        result = ''
+        skipped = 0
+        for char in source:
+            try:
+                _char = repr(char)
+                result += char
+            except (UnicodeEncodeError, UnicodeDecodeError, Exception):
+                skipped += 1
+                msg = f'Skipping a char from source. Total skipped: {skipped}'
+                _log(msg)
+
+        if not result:
+            raise ValueError(f'Empty source result after processing. Skipped: {skipped}')
+
+        _log('Processed source chars.')
+
+        filename = 'saved_source.html'
+        with open(filename, mode='w', encoding='utf8', errors='ignore') as file:
+            file.write(result)
+        _log(f'Saved source to file: {filename}')
+
+        return result
+
+    def _is_blocked_proxy(self, proxy):
+        proxy_str = proxy.get('http')
+        return proxy_str in self._stats['blocked_proxies']
 
     def _get_source(self, url, _type='product', time_to_wait=10, scroll_page=True):
+
         proxies_count = len(self._proxies)
-        attempts = 0
-        last_used_proxy = None
-        while attempts <= proxies_count:
-            attempts += 1
-            msg = f'Attempt {attempts}. Getting source of {_type} page: {url}'
+        for attempt, proxy in enumerate(self._proxies, start=1):
+            proxy_str = proxy.get('http')
+            msg = f'Attempt # {attempt}. Getting source of {_type} page: {url}'
             _log(msg)
 
-            # pick random proxy but not the last one used
-            if proxies_count > 1:
-                while True:
-                    proxy = choice(self._proxies)
-                    if proxy != last_used_proxy:
-                        # noinspection PyUnusedLocal
-                        last_used_proxy = proxy
-                        break
-            else:
-                proxy = self._proxies[0]
+            if self._is_blocked_proxy(proxy):
+                _log(f'Skipped a blocked proxy (getting a regular page source): {proxy_str}')
 
             driver = self._create_webdriver(proxy=proxy)
             try:
-                self._helping_actions(driver, url, time_to_wait, scroll_page)
+                try:
+                    self._helping_actions(driver, url, time_to_wait, scroll_page)
+                except (ConnectionError, Exception) as err:
+                    err_msg = f'Failed to query url with webdriver and skipped to next attempt. ' \
+                              f'Error: {self._exc(err)}'
+                    _err(err_msg)
+                    continue
+
                 source = self._source(driver)
+
+                if self._is_403(source):
+                    _log(f'The proxy is blocked by content provider: {proxy_str}')
+                    self._stats['blocked_proxies'].add(proxy_str)
+                    continue
+
                 if not self._is_captcha(source):
                     _log(f'Received source for url: {url}')
                     return {'source': source}
@@ -885,23 +954,29 @@ class Parser:
                 # got captcha
                 _log(f'Received captcha for url: {url}. Will try to solve it.')
                 captcha_attempts = 0
-                captcha_max_attempts = 10
+                captcha_max_attempts = 5
                 captcha_submit_pause = 10  # secs
 
                 while captcha_attempts <= captcha_max_attempts:
                     captcha_attempts += 1
-                    msg = f'Attempt {attempts}. Solving captcha of {_type} page: {url}'
+                    msg = f'Attempt {captcha_attempts}. Solving captcha of {_type} page: {url}'
                     _log(msg)
 
                     elements = self._get_captcha_input_elements(driver)
                     if error := elements.get('error'):
-                        return {'error': f'captcha get input elements from source error: {error}'}
+                        err_msg = f'error parsing captcha input elements with webdriver: {error}'
+                        _err(err_msg)
+                        break
+                        # return {'error': err_msg}
 
                     solve_result = self._solve_captcha(source)
                     if error := solve_result.get('error'):
-                        return {'error': f'captcha solve error: {error}'}
+                        err_msg = f'captcha solve error: {error}'
+                        _err(err_msg)
+                        break
+                        # return {'error': err_msg}
 
-                    # submit captcha
+                    # submit captcha solve err
                     code = solve_result.get('code')
                     elements['input'].send_keys(code)
                     elements['submit'].click()
@@ -909,10 +984,23 @@ class Parser:
                     _log(msg)
                     time.sleep(captcha_submit_pause)
 
-                    self._helping_actions(driver, url, time_to_wait, scroll_page)
+                    try:
+                        self._helping_actions(driver, url, time_to_wait, scroll_page)
+                    except (ConnectionError, Exception) as err:
+                        err_msg = f'Failed to query url with webdriver (when solving captcha) ' \
+                                  f'and skipped to next attempt. Error: {self._exc(err)}'
+                        _err(err_msg)
+                        break
+
                     source = self._source(driver)
 
                     solved_captcha_id = solve_result.get('captcha_id')
+
+                    if self._is_403(source):
+                        _log(f'The proxy is blocked by content provider (when solving captcha): {proxy_str}')
+                        self._stats['blocked_proxies'].add(proxy_str)
+                        break
+
                     if not self._is_captcha(source):
                         # captcha solved successfully
                         self._stats['captcha']['good'] += 1
@@ -949,6 +1037,12 @@ class Parser:
 
     def _download_content(self, url, goal='captcha image url', ext='jpg'):
         for proxy in self._proxies:
+
+            if self._is_blocked_proxy(proxy):
+                proxy_str = proxy.get('http')
+                _log(f'Skipped a blocked proxy (when downloading a captcha image): {proxy_str}')
+                continue
+
             self._session.proxies = proxy
             response = self._session.get(url, timeout=self._timeout)
 
@@ -956,9 +1050,14 @@ class Parser:
             if response.status_code != 200:
                 err_msg = f' Non-200 response received when downloading {goal}: {url}. \n' \
                           f'Proxy used: {proxy}.\n' \
-                          f'Response status: {response.status_code}. ' \
-                          f'Response text: {response.text}'
+                          f'Response status: {response.status_code}.'
                 _err(err_msg)
+
+                save_path = '/tmp/captcha_image_download_non_200_response.html'
+                with open(save_path, 'w', encoding='utf8', errors='ignore') as file:
+                    file.write(response.text)
+                _log(f'Saved captcha non-200 response to file: {save_path}')
+
                 continue
 
             # save content
